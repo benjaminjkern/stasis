@@ -5,74 +5,105 @@ module.exports = {
                 uses: {
                     accesses: [
                         {
-                            key: 'charAt',
+                            key: "charAt",
                             uses: {
                                 accesses: [],
                                 calls: [
                                     {
-                                        arguments: [{ valueOf: 0 }],
+                                        passedInArguments: [{ valueOf: 0 }],
                                         uses: {
                                             accesses: [
                                                 {
-                                                    key: 'toUpperCase',
+                                                    key: "toUpperCase",
                                                     uses: {
                                                         accesses: [],
                                                         calls: [
                                                             {
-                                                                arguments: [],
+                                                                passedInArguments:
+                                                                    [],
                                                                 uses: {
-                                                                    accesses: [],
-                                                                    calls: []
+                                                                    accesses:
+                                                                        [],
+                                                                    calls: [],
                                                                 },
-                                                                stasisIndex: 4
-                                                            }
-                                                        ]
+                                                                stasisIndex: 5,
+                                                            },
+                                                        ],
                                                     },
-                                                    stasisIndex: 3
-                                                }
+                                                    stasisIndex: 4,
+                                                },
                                             ],
-                                            calls: []
+                                            calls: [],
                                         },
-                                        stasisIndex: 2
-                                    }
-                                ]
+                                        stasisIndex: 3,
+                                    },
+                                ],
                             },
-                            stasisIndex: 1
+                            stasisIndex: 1,
                         },
                         {
-                            key: 'slice',
+                            key: "slice",
                             uses: {
                                 accesses: [],
-                                calls: [
-                                    { arguments: [{ valueOf: 1 }] }
-                                ]
+                                calls: [{ arguments: [{ valueOf: 1 }] }],
                             },
-                            stasisIndex: 5
-                        }
+                            stasisIndex: 2,
+                        },
                     ],
-                    calls: []
+                    calls: [],
                 },
-                stasisIndex: 0
-            }
+                stasisIndex: 0,
+            },
         ],
+        scopeVariables: [],
+        mutations: [],
         returns: {
             valueOf: {
-                nodeType: '+',
+                nodeType: "+",
                 children: [
                     {
-                        stasisIndex: 1,
+                        stasisIndex: 5,
                     },
                     {
-                        stasisIndex: 5
-                    }
-                ]
+                        stasisIndex: 2,
+                    },
+                ],
+            },
+        },
+    },
+};
+
+const errorCheckFunctionCall = (
+    { arguments, scopeVariables, mutations, returns },
+    passedInArguments
+) => {};
+
+const errorCheckAccess = ({ key, ...rest }) => {};
+
+const getKey = (object, key) => {
+    if (!hasKey(object, key))
+        stasisWarn(`Stasis item ${stasisIndex} does not have key`);
+    return object[key];
+};
+
+const errorCheckVariable = ({ uses, stasisIndex }, value) => {
+    const { accesses, calls } = uses;
+    if (accesses.length) {
+        if (value === undefined || value === null)
+            stasisError(`Cannot read properties of ${value}!`);
+        else {
+            for (const { key, ...rest } of accesses) {
+                errorCheckVariable(rest, getKey(value, key));
             }
-        },
-        errorCheck: (...a) => {
-            if (a.length > )
-        },
-        warningCheck: (...a) => {
-            if
+        }
+    }
+    if (calls.length) {
+        if (typeof value !== "function") stasisError("Not a function!");
+        else {
+            for (const { passedInArguments, ...rest } of calls) {
+                // NEED TO FETCH THE FUNCTION DEFINITION HERE
+                errorCheckFunctionCall(rest, getKey(value, key));
+            }
         }
     }
 };
