@@ -1,3 +1,29 @@
+capitalize :: (str :: { charAt :: 0 => { toUpperCase :: () => $0}, slice :: 1 => $1}) => types($0, $1)
+
+
+const OPERATOR_TYPES = {
+    '+': ($0, $1) => {
+        const type0 = typeof $0;
+        const type1 = typeof $1;
+        if (type0 === 'bigint')
+            return bigintCheck($1);
+        if (type1 === 'bigint')
+            return bigintCheck($0);
+        if (type0 === 'bigint' && type1 === 'bigint') return 'bigint';
+        if (type0 === 'number' && type1 === 'number') return 'number';
+        if (type0 !== 'bigint' && type1 !== 'bigint') return 'string';
+    }
+}
+
+const bigintCheck = ($1) => {
+    const type1 = typeof $1;
+    if ($1 === null || ['number', 'boolean', 'undefined'].includes(type1)) 
+        throw 'TypeError: Cannot mix BigInt and other types, use explicit conversions';
+    if (type1 === 'bigint') return 'bigint';
+    return 'string';
+}
+types = ($0, $1) => 
+
 module.exports = {
     capitalize: {
         arguments: [
