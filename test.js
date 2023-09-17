@@ -1,10 +1,4 @@
-const f = () => {
-    console.log("f()");
-    return { a: 5 };
-};
-
-const g = () => {
-    console.log("g()");
-    return "a";
-};
-console.log(f()[g()]);
+const acorn = require("acorn");
+const fs = require("fs");
+const { inspect } = require("./src/utils");
+inspect(acorn.parse("a += 5", { ecmaVersion: 2020 }));
