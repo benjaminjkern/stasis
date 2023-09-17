@@ -13,7 +13,7 @@ module.exports = (fileName) => {
     // inspect(program);
     // console.log(program.body);
     for (const statement of program.body) {
-        analyzeStatement(statement);
+        inspect(analyzeStatement(statement));
         return "blarg";
     }
 };
