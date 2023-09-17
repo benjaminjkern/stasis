@@ -10,7 +10,8 @@ const trackDownUsedParam = (usageObjectBase) => {
 };
 
 const getIdentifierUsage = (astNode, paramName) => {
-    console.log("getIdentifierUsage", astNode, paramName);
+    if (!astNode) return [];
+    // console.log("getIdentifierUsage", astNode, paramName);
     switch (astNode.type) {
         case "BlockStatement":
             return astNode.body.flatMap((subNode) =>
@@ -19,10 +20,18 @@ const getIdentifierUsage = (astNode, paramName) => {
         case "ReturnStatement":
             return getIdentifierUsage(astNode.argument, paramName);
         case "BinaryExpression":
+        case "LogicalExpression":
+            // Need to actually do something about this
             return [
                 ...getIdentifierUsage(astNode.left, paramName),
                 ...getIdentifierUsage(astNode.right, paramName),
             ];
+        case "UnaryExpression":
+            return getIdentifierUsage(astNode.argument, paramName);
+        case "TemplateLiteral":
+            return astNode.expressions.flatMap((exp) =>
+                getIdentifierUsage(exp, paramName)
+            );
         case "CallExpression":
             // optional
             const calleeUses = getIdentifierUsage(astNode.callee, paramName);
@@ -42,12 +51,64 @@ const getIdentifierUsage = (astNode, paramName) => {
                 })
             ); // Not accounting for calculated
         case "Identifier":
-            return [{ match: astNode.name === paramName }];
+            if (astNode.name === paramName) return [{ match: true }];
+            return [];
+        case "Literal":
+            return [];
+        case "IfStatement":
+            const consequentUses = getIdentifierUsage(
+                astNode.consequent,
+                paramName
+            );
+            const alternateUses = astNode.alternate
+                ? getIdentifierUsage(astNode.alternate, paramName)
+                : [];
+            return [
+                ...consequentUses.map((useCase) => ({
+                    ...useCase,
+                    condition: astNode.test,
+                })),
+                ...alternateUses.map((useCase) => ({
+                    ...useCase,
+                    condition: { not: astNode.test },
+                })),
+            ];
+        case "VariableDeclaration":
+            return astNode.declarations.flatMap((subNode) =>
+                getIdentifierUsage(subNode, paramName)
+            );
+        case "VariableDeclarator":
+            if (astNode.id === paramName) console.log("Overwriting value");
+            // Overwriting value
+            return getIdentifierUsage(astNode.init, paramName);
+
+        case "ExpressionStatement":
+            return getIdentifierUsage(astNode.expression, paramName);
+        case "AssignmentExpression":
+            return [
+                ...getIdentifierUsage(astNode.left, paramName),
+                ...getIdentifierUsage(astNode.right, paramName),
+            ];
+        case "ObjectExpression":
+            return astNode.properties.flatMap((prop) =>
+                getIdentifierUsage(prop, paramName)
+            );
+        case "Property":
+            return getIdentifierUsage(astNode.value, paramName);
+        case "ArrayExpression":
+            return astNode.elements.flatMap((prop) =>
+                getIdentifierUsage(prop, paramName)
+            );
+        case "NewExpression":
+            return getIdentifierUsage(astNode.callee, paramName); // skipping args for now
+        default:
+            console.log(astNode);
+            throw `Unknown astNode type: ${astNode.type}`;
     }
 };
 
 module.exports = (functionDeclaration) => {
-    inspect(functionDeclaration);
+    // inspect(functionDeclaration);
     return {
         params: functionDeclaration.params.map((param) => {
             // Wrap?

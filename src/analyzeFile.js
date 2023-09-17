@@ -14,6 +14,5 @@ module.exports = (fileName) => {
     // console.log(program.body);
     for (const statement of program.body) {
         inspect(analyzeStatement(statement));
-        return "blarg";
     }
 };
