@@ -28,7 +28,7 @@ function isNumeric(str) {
  * @returns {Number} The rounded number.
  */
 function roundN(num, n) {
-    return Math.round(num * (10 ** n)) / (10 ** n);
+    return Math.round(num * 10 ** n) / 10 ** n;
 }
 
 /**
@@ -74,17 +74,20 @@ function listToHtml(list) {
  * @param {String} startType The button class type when toggled off.
  * @param {String} endType The button class type when toggled on.
  */
-function toggleButtonType(enabled, button, startType = "btn-default", endType = "btn-primary") {
+function toggleButtonType(
+    enabled,
+    button,
+    startType = "btn-default",
+    endType = "btn-primary"
+) {
     if (enabled === undefined) {
         // Try to toggle if left undefined
         if (button.classList.contains(startType)) enabled = true;
         else if (button.classList.contains(endType)) enabled = false;
         else return;
     }
-    if (enabled)
-        button.classList.replace(startType, endType);
-    else
-        button.classList.replace(endType, startType);
+    if (enabled) button.classList.replace(startType, endType);
+    else button.classList.replace(endType, startType);
 }
 
 /**
@@ -115,7 +118,6 @@ function cartesianToDegrees(cartesian, round = null) {
     return { lat, lon };
 }
 
-
 /**
  * Converts given longitude to -PI to PI (or -180 to 180).
  * @param {Number} longitude The longitude coordinate on the globe.
@@ -124,7 +126,7 @@ function cartesianToDegrees(cartesian, round = null) {
  */
 function standardizeLongitude(longitude, isDegrees = false) {
     if (isDegrees) longitude = Cesium.Math.toRadians(longitude);
-    let outLongitude = (longitude + PI) % TWO_PI - PI;
+    let outLongitude = ((longitude + PI) % TWO_PI) - PI;
     if (isDegrees) outLongitude = Cesium.Math.toDegrees(outLongitude);
     return outLongitude;
 }
@@ -142,8 +144,8 @@ function cartesianToDmsString(cartesian, strip = false, signed = false) {
     // Converts radians to degrees
     let lat = Cesium.Math.toDegrees(radians.latitude);
     let lon = Cesium.Math.toDegrees(radians.longitude);
-    let latStr = dmsObjectToString(ddToDms(lat, 'lat'));
-    let lonStr = dmsObjectToString(ddToDms(lon, 'lon'));
+    let latStr = dmsObjectToString(ddToDms(lat, "lat"));
+    let lonStr = dmsObjectToString(ddToDms(lon, "lon"));
     // Removes word characters (i.e. °, ', ")
     if (strip) {
         latStr = latStr.replace(/\W+/g, " ");
@@ -179,7 +181,8 @@ function calculateBearing(origin, destination) {
 
     // Formula to calculate the bearing
     const y = Math.sin(lam2 - lam1) * Math.cos(phi2);
-    const x = Math.cos(phi1) * Math.sin(phi2) -
+    const x =
+        Math.cos(phi1) * Math.sin(phi2) -
         Math.sin(phi1) * Math.cos(phi2) * Math.cos(lam2 - lam1);
     const bearing = Math.atan2(y, x);
     return ((bearing % TWO_PI) + TWO_PI) % TWO_PI;
@@ -193,7 +196,9 @@ function calculateBearing(origin, destination) {
  */
 function getDistanceAndBearing(origin, destination) {
     const distNmi = Cesium.Cartesian3.distance(origin, destination) / M_PER_NMI;
-    const bearingDeg = Cesium.Math.toDegrees(calculateBearing(origin, destination));
+    const bearingDeg = Cesium.Math.toDegrees(
+        calculateBearing(origin, destination)
+    );
     return [distNmi, bearingDeg];
 }
 
@@ -215,20 +220,29 @@ function getDistanceAndBearingStrings(origin, destination) {
  * @returns {Number} The distance in meters of the arc from origin to destination.
  */
 function getArcDistance(origin, destination) {
-    return EARTH_RADIUS_METERS *
-        Math.abs(Math.asin(
-            Cesium.Cartesian3.magnitude(
-                Cesium.Cartesian3.cross(
-                    origin, destination, new Cesium.Cartesian3()
-                ), new Cesium.Cartesian3()
-            ) /
-            Cesium.Cartesian3.magnitude(
-                origin, new Cesium.Cartesian3()
-            ) /
-            Cesium.Cartesian3.magnitude(
-                destination, new Cesium.Cartesian3()
+    return (
+        EARTH_RADIUS_METERS *
+        Math.abs(
+            Math.asin(
+                Cesium.Cartesian3.magnitude(
+                    Cesium.Cartesian3.cross(
+                        origin,
+                        destination,
+                        new Cesium.Cartesian3()
+                    ),
+                    new Cesium.Cartesian3()
+                ) /
+                    Cesium.Cartesian3.magnitude(
+                        origin,
+                        new Cesium.Cartesian3()
+                    ) /
+                    Cesium.Cartesian3.magnitude(
+                        destination,
+                        new Cesium.Cartesian3()
+                    )
             )
-        ));
+        )
+    );
 }
 
 /**
@@ -241,13 +255,13 @@ function getArcDistance(origin, destination) {
  */
 function getDestination(lon, lat, bearing, distance) {
     let origin = new Cesium.Cartographic.fromDegrees(lon, lat);
-    let bearingRad = bearing * PI / 180;
+    let bearingRad = (bearing * PI) / 180;
     let angDisRad = distance / EARTH_RADIUS_METERS;
     const latRad = origin.latitude;
     const lonRad = origin.longitude;
-    let sinLat2 = (
+    let sinLat2 =
         Math.sin(latRad) * Math.cos(angDisRad) +
-        Math.cos(latRad) * Math.sin(angDisRad) * Math.cos(bearingRad));
+        Math.cos(latRad) * Math.sin(angDisRad) * Math.cos(bearingRad);
     let lat2Rad = Math.asin(sinLat2);
     let y = Math.sin(bearingRad) * Math.sin(angDisRad) * Math.cos(latRad);
     let x = Math.cos(angDisRad) - Math.sin(latRad) * sinLat2;
@@ -338,7 +352,10 @@ function rotateAroundAxis(axis, theta, vector) {
  *      Return a value of `false` to skip the main function.
  *      Return any other value to pass scoped variables to the main function.
  */
-function delayedInputListener(input, { delay = PARSING_COORDS_DELAY, listener, before = () => { } }) {
+function delayedInputListener(
+    input,
+    { delay = PARSING_COORDS_DELAY, listener, before = () => {} }
+) {
     let timeout = null;
     input.addEventListener("keyup", (event) => {
         let passedParams = before(event);
@@ -360,12 +377,12 @@ function delayedInputListener(input, { delay = PARSING_COORDS_DELAY, listener, b
  */
 function alphanumericSort(a, b) {
     // If a and b have textContent, compare against it
-    if (a.textContent !== undefined & b.textContent !== undefined) {
+    if ((a.textContent !== undefined) & (b.textContent !== undefined)) {
         a = a.textContent;
         b = b.textContent;
     }
     return a.localeCompare(b, undefined, {
         numeric: true,
-        sensitivity: 'base'
+        sensitivity: "base",
     });
 }
