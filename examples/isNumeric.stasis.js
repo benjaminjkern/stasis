@@ -1,8 +1,3 @@
-function isNumeric(str) {
-    if (typeof str != "string") return false;
-    return !isNaN(str) && !isNaN(parseFloat(str));
-}
-
 const a = {
     0: {
         type: "function",

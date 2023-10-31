@@ -1,71 +1,45 @@
-function capitalize(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-const a = {
-    0: {
-        type: "function",
-        parameters: [{ stasisIndex: 1 }],
-        uses: [],
-        returns: { stasisIndex: 8 },
-    },
-    1: {
-        uses: [
+const scope = [
+    {
+        type: "Function",
+        scopeReturnIndex: 6,
+        scope: [
             {
                 type: "MemberAccess",
+                owner: { argumentIndex: 0 },
                 key: { rawValue: "charAt" },
-                returnStasis: 2,
             },
             {
                 type: "MemberAccess",
+                owner: { argumentIndex: 0 },
                 key: { rawValue: "slice" },
-                returnStasis: 3,
             },
-        ],
-    },
-    2: {
-        uses: [
-            { type: "Callee", arguments: [{ rawValue: 0 }], returnStasis: 4 },
-        ],
-    },
-    3: {
-        uses: [
-            { type: "Callee", arguments: [{ rawValue: 1 }], returnStasis: 5 },
-        ],
-    },
-    4: {
-        uses: [
+            {
+                type: "Call",
+                callee: { scopeIndex: 0 },
+                arguments: [{ rawValue: 0 }],
+            },
+            {
+                type: "Call",
+                callee: { scopeIndex: 1 },
+                arguments: [{ rawValue: 1 }],
+            },
             {
                 type: "MemberAccess",
+                owner: { scopeIndex: 2 },
                 key: { rawValue: "toUpperCase" },
-                returnStasis: 6,
             },
-        ],
-    },
-    5: {
-        uses: [
+            { type: "Call", callee: { scopeIndex: 4 }, arguments: [] },
             {
                 type: "BinaryOperation",
                 operator: "+",
-                side: "right",
-                otherSide: { stasisIndex: 7 },
-                returnStasis: 8,
+                leftSide: { scopeIndex: 5 },
+                rightSide: { scopeIndex: 3 },
             },
         ],
     },
-    6: {
-        uses: [{ type: "Call", arguments: [], returnStasis: 7 }],
+    {
+        type: "Call",
+        callee: { scopeIndex: 0 },
+        arguments: [{ rawValue: "hello" }],
     },
-    7: {
-        uses: [
-            {
-                type: "BinaryOperation",
-                operator: "+",
-                side: "left",
-                otherSide: { stasisIndex: 5 },
-                returnStasis: 8,
-            },
-        ],
-    },
-    8: {},
-};
+];
