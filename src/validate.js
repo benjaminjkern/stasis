@@ -6,41 +6,60 @@ const getStasisNode = (nodeTemplate, stasisModule) => {
 
 const validateModule = (stasisModule) => {
     console.log("Validating module");
-    for (const usage of stasisModule.topLevelUses) {
-        validateUsage(getStasisNode(usage, stasisModule), stasisModule);
+    for (const usage of stasisModule.statements) {
+        evaluate(getStasisNode(usage, stasisModule), stasisModule);
     }
 };
 
-const validateUsage = (stasisNode, stasisModule) => {
-    console.log("Validating usage", stasisNode);
+const USAGE_TYPES = ["Call", "MemberAccess"];
+const RAW_VALUE_TYPES = ["StringValue", "NumberValue", "ObjectValue"];
+const ALGEBRAIC_TYPES = [];
+
+const evaluate = (stasisNode, stasisModule) => {
+    console.log("Evaluating", stasisNode);
+    if (RAW_VALUE_TYPES.includes(stasisNode.type)) return stasisNode;
+    // Need to add ObjectTemplate as a usage
+    // if (stasisNode.type === "ObjectValue") {
+    //     return {type: "EvaluatedObjectValue"stasisNode.values.reduce(
+    //         (p, { key, value }) => ({
+    //             ...p,
+    //             [evaluate(getStasisNode(key, stasisModule), stasisModule)]:
+    //                 evaluate(
+    //                     getStasisNode(value, stasisModule),
+    //                     stasisModule
+    //                 ),
+    //         })
+    //     );
+    // }
+
     if (stasisNode.type === "Call") {
         const callee = evaluate(
             getStasisNode(stasisNode.callee, stasisModule),
             stasisModule
         );
         if (callee.type !== "FunctionValue") {
-            console.warn("Callee must be a function value!");
-            return;
+            return { error: "Callee must be a function value!" };
         }
         const evaluatedArguments = stasisNode.arguments.map((arg) =>
             evaluate(getStasisNode(arg, stasisModule), stasisModule)
         );
-        for (let i = 0; i < callee.parameters.length; i++) {
-            canNodeBeValue(
-                callee.parameters[i],
-                evaluatedArguments[i],
-                stasisModule
-            );
-        }
-        return;
+        // Need to account for algebraic types here
+        // for (let i = 0; i < callee.parameters.length; i++) {
+        //     canNodeBeValue(
+        //         callee.parameters[i],
+        //         evaluatedArguments[i],
+        //         stasisModule
+        //     );
+        // }
+        return callee.value(...evaluatedArguments.map((arg) => arg.value));
     }
     if (stasisNode.type === "MemberAccess") {
         const owner = evaluate(
-            getStasisNode(stasisNode.callee, stasisModule),
+            getStasisNode(stasisNode.owner, stasisModule),
             stasisModule
         );
         const key = evaluate(
-            getStasisNode(stasisNode.callee, stasisModule),
+            getStasisNode(stasisNode.key, stasisModule),
             stasisModule
         );
         switch (key.type) {
@@ -48,10 +67,12 @@ const validateUsage = (stasisNode, stasisModule) => {
                 console.warn(
                     `Warning: This will result in a member access with a function value as a key, which gets turned into a string. This is possible, but probably not what you want!`
                 );
+                break;
             case "ObjectValue":
                 console.warn(
                     `Warning: This will result in a member access with an object value as a key, which gets turned into a string. This is possible, but probably not what you want!`
                 );
+                break;
             // TODO: Fill out
         }
 
@@ -61,19 +82,12 @@ const validateUsage = (stasisNode, stasisModule) => {
         if (owner.type === "NumberValue") {
             // Iterate through possible keys for strings
         }
+        if (owner.type === "ObjectValue") {
+            // TODO: Actually do this
+            return { type: "FunctionValue", value: owner.value[key.value] };
+        }
     }
-};
-
-const canNodeBeValue = (stasisNode, value, stasisModule) => {
-    for (const usage of stasisNode.uses) {
-        const usageNode = getStasisNode(usage, stasisModule);
-    }
-};
-
-const evaluate = (stasisNode, stasisModule) => {
-    if (stasisType.type === "RawStringValue") return stasisNode;
-    if (stasisType.type === "FunctionValue") return stasisNode;
     throw `Unsupported type: ${stasisType.type}`;
 };
 
-validateModule(require("../examples/capitalize.stasis"));
+validateModule(require("../examples/test.stasis.js"));
