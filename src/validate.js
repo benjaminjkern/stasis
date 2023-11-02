@@ -7,7 +7,11 @@ const getStasisNode = (nodeTemplate, stasisModule) => {
 const validateModule = (stasisModule) => {
     console.log("Validating module");
     for (const usage of stasisModule.statements) {
-        evaluate(getStasisNode(usage, stasisModule), stasisModule);
+        const result = evaluate(
+            getStasisNode(usage, stasisModule),
+            stasisModule
+        );
+        if (result.error) console.log(result);
     }
 };
 
@@ -51,7 +55,8 @@ const evaluate = (stasisNode, stasisModule) => {
         //         stasisModule
         //     );
         // }
-        return callee.value(...evaluatedArguments.map((arg) => arg.value));
+        callee.value(...evaluatedArguments.map((arg) => arg.value));
+        return { type: "Undefined" };
     }
     if (stasisNode.type === "MemberAccess") {
         const owner = evaluate(
@@ -90,4 +95,4 @@ const evaluate = (stasisNode, stasisModule) => {
     throw `Unsupported type: ${stasisType.type}`;
 };
 
-validateModule(require("../examples/test.stasis.js"));
+validateModule(require("../workingexamples/basic.stasis.js"));
