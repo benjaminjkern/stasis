@@ -6,14 +6,21 @@ class UsableValue extends Value {
     uses: [Usage];
 }
 class FunctionValue extends UsableValue {
-    parameters: [Value];
-    returns: Value;
+    parameters: [FunctionArgumentValue];
+    possibleReturns: [FunctionReturnValue];
 }
 class FunctionArgumentValue extends UsableValue {
     function: FunctionValue;
 }
 
-abstract class Usage {}
+class FunctionReturnValue {
+    function: FunctionValue;
+    returnValue: Value;
+}
+
+/******** */
+
+abstract class Usage extends UsableValue {}
 class MemberAccess extends Usage {
     owner: Value;
     key: Value;
@@ -27,10 +34,3 @@ class BinaryOperation extends Usage {
     leftSide: Value;
     rightSide: Value;
 }
-
-const a = new FunctionValue();
-const b = new FunctionArgumentValue();
-
-a.parameters = [b];
-a.returns = c;
-b.function = a;
