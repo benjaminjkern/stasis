@@ -2,12 +2,14 @@ module.exports = [
     {
         type: "Call",
         callee: { stasisIndex: 1 },
-        arguments: [{ type: "RawValue", value: "hello" }],
+        arguments: [{ stasisIndex: 11 }],
+        uses: [],
     },
     {
         type: "FunctionValue",
         parameters: [{ stasisIndex: 2 }],
         possibleReturns: [{ stasisIndex: 3 }],
+        uses: [{ stasisIndex: 0 }],
     },
     {
         type: "FunctionArgumentValue",
@@ -22,41 +24,31 @@ module.exports = [
     {
         type: "MemberAccess",
         owner: { stasisIndex: 2 },
-        key: {
-            type: "RawValue",
-            value: "charAt",
-        },
+        key: { stasisIndex: 16 },
         uses: [{ stasisIndex: 7 }],
     },
     {
         type: "MemberAccess",
         owner: { stasisIndex: 2 },
-        key: {
-            type: "RawValue",
-            value: "slice",
-        },
+        key: { stasisIndex: 15 },
+        uses: [{ stasisIndex: 6 }],
     },
     {
         type: "Call",
         callee: { stasisIndex: 5 },
-        arguments: [{ type: "RawValue", value: 1 }],
+        arguments: [{ stasisIndex: 14 }],
         uses: [{ stasisIndex: 10 }],
     },
     {
         type: "Call",
         callee: { stasisIndex: 4 },
-        arguments: [
-            {
-                type: "RawValue",
-                value: 0,
-            },
-        ],
+        arguments: [{ stasisIndex: 13 }],
         uses: [{ stasisIndex: 8 }],
     },
     {
         type: "MemberAccess",
         owner: { stasisIndex: 7 },
-        key: { type: "RawValue", value: "toUpperCase" },
+        key: { stasisIndex: 12 },
         uses: [{ stasisIndex: 9 }],
     },
     {
@@ -71,5 +63,27 @@ module.exports = [
         leftSide: { stasisIndex: 9 },
         rightSide: { stasisIndex: 6 },
         uses: [{ stasisIndex: 3 }],
+    },
+    { type: "RawStringValue", value: "hello", uses: [{ stasisIndex: 0 }] },
+    {
+        type: "RawStringValue",
+        value: "toUpperCase",
+        uses: [{ stasisIndex: 8 }],
+    },
+    {
+        type: "RawNumberValue",
+        value: 0,
+        uses: [{ stasisIndex: 7 }],
+    },
+    { type: "RawNumberValue", value: 1, uses: [{ stasisIndex: 6 }] },
+    {
+        type: "RawStringValue",
+        value: "slice",
+        uses: [{ stasisIndex: 5 }],
+    },
+    {
+        type: "RawStringValue",
+        value: "charAt",
+        uses: [{ stasisIndex: 4 }],
     },
 ];

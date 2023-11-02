@@ -1,15 +1,17 @@
-abstract class Value {}
-class RawValue extends Value {
-    value: any;
-}
-class UsableValue extends Value {
+abstract class Value {
     uses: [Usage];
 }
-class FunctionValue extends UsableValue {
+class StringValue extends Value {
+    value: any;
+}
+class NumberValue extends Value {
+    value: any;
+}
+class FunctionValue extends Value {
     parameters: [FunctionArgumentValue];
     possibleReturns: [FunctionReturnValue];
 }
-class FunctionArgumentValue extends UsableValue {
+class FunctionArgumentValue extends Value {
     function: FunctionValue;
 }
 
@@ -20,7 +22,7 @@ class FunctionReturnValue {
 
 /******** */
 
-abstract class Usage extends UsableValue {}
+abstract class Usage extends Value {}
 class MemberAccess extends Usage {
     owner: Value;
     key: Value;
