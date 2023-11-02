@@ -1,13 +1,15 @@
+interface RawValue {}
+
 abstract class Value {
     uses: [Usage];
 }
-class StringValue extends Value {
-    value: any;
+class StringValue extends Value implements RawValue {
+    value: string;
 }
-class NumberValue extends Value {
-    value: any;
+class NumberValue extends Value implements RawValue {
+    value: number;
 }
-class FunctionValue extends Value {
+class FunctionValue extends Value implements RawValue {
     parameters: [FunctionArgumentValue];
     possibleReturns: [FunctionReturnValue];
 }
