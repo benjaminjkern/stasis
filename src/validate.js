@@ -1,16 +1,7 @@
-const getStasisNode = (nodeTemplate, stasisModule) => {
-    if (nodeTemplate.stasisIndex !== undefined)
-        return stasisModule.nodes[nodeTemplate.stasisIndex];
-    throw "Tried to fetch stasis node but did not receive an index!";
-};
-
 const validateModule = (stasisModule) => {
     console.log("Validating module");
     for (const usage of stasisModule.statements) {
-        const result = evaluate(
-            getStasisNode(usage, stasisModule),
-            stasisModule
-        );
+        const result = evaluate(usage, stasisModule);
         if (result.error) console.log(result);
     }
 };
@@ -20,8 +11,32 @@ const RAW_VALUE_TYPES = ["StringValue", "NumberValue", "ObjectValue"];
 const ALGEBRAIC_TYPES = [];
 
 const evaluate = (stasisNode, stasisModule) => {
-    console.log("Evaluating", stasisNode);
+    if (stasisNode.stasisIndex !== undefined)
+        return evaluate(
+            stasisModule.nodes[stasisNode.stasisIndex],
+            stasisModule
+        );
+
     if (RAW_VALUE_TYPES.includes(stasisNode.type)) return stasisNode;
+    console.log("Evaluating", stasisNode);
+
+    // Need to Consolidate multiple possible values into one
+    // if (stasisNode.type === "MultiplePossibleValues") {
+    //     const possibleValues = [];
+    //     for (const node of stasisNode.possibleValues) {
+    //         const evaluatedNode = evaluate(node, stasisModule);
+    //         if (evaluatedNode.type === "MultiplePossibleValues")
+    //             // Recurse
+    //             possibleValues.push(
+    //                 ...evaluatedNode.possibleValues.map((value) =>
+    //                     evaluate(value, stasisModule)
+    //                 )
+    //             );
+    //         else possibleValues.push(evaluatedNode);
+    //     }
+    //     return { type: "MultiplePossibleValues", possibleValues };
+    // }
+
     // Need to add ObjectTemplate as a usage
     // if (stasisNode.type === "ObjectValue") {
     //     return {type: "EvaluatedObjectValue"stasisNode.values.reduce(
@@ -37,17 +52,14 @@ const evaluate = (stasisNode, stasisModule) => {
     // }
 
     if (stasisNode.type === "Call") {
-        const callee = evaluate(
-            getStasisNode(stasisNode.callee, stasisModule),
-            stasisModule
-        );
+        const callee = evaluate(stasisNode.callee, stasisModule);
         if (callee.type !== "FunctionValue") {
-            return { error: "Callee must be a function value!" };
+            throw "Callee must be a function value!";
         }
         const evaluatedArguments = stasisNode.arguments.map((arg) =>
-            evaluate(getStasisNode(arg, stasisModule), stasisModule)
+            evaluate(arg, stasisModule)
         );
-        // Need to account for algebraic types here
+        // Need to account for multiple types here
         // for (let i = 0; i < callee.parameters.length; i++) {
         //     canNodeBeValue(
         //         callee.parameters[i],
@@ -55,18 +67,47 @@ const evaluate = (stasisNode, stasisModule) => {
         //         stasisModule
         //     );
         // }
+        // Need to not actually call the function
         callee.value(...evaluatedArguments.map((arg) => arg.value));
-        return { type: "Undefined" };
+        // Need to account for multiple types and input-dependent types
+        return callee.returns;
     }
+
     if (stasisNode.type === "MemberAccess") {
-        const owner = evaluate(
-            getStasisNode(stasisNode.owner, stasisModule),
-            stasisModule
-        );
-        const key = evaluate(
-            getStasisNode(stasisNode.key, stasisModule),
-            stasisModule
-        );
+        const owner = evaluate(stasisNode.owner, stasisModule);
+
+        if (owner.type === "MultiplePossibleValues")
+            return {
+                type: "MultiplePossibleValues",
+                possibleValues: owner.possibleValues.map((value) =>
+                    evaluate(
+                        {
+                            type: "MemberAccess",
+                            owner: value,
+                            key: stasisNode.key,
+                        },
+                        stasisModule
+                    )
+                ),
+            };
+
+        const key = evaluate(stasisNode.key, stasisModule);
+
+        if (key.type === "MultiplePossibleValues")
+            return {
+                type: "MultiplePossibleValues",
+                possibleValues: key.possibleValues.map((value) =>
+                    evaluate(
+                        {
+                            type: "MemberAccess",
+                            owner: stasisNode.owner,
+                            key: value,
+                        },
+                        stasisModule
+                    )
+                ),
+            };
+
         switch (key.type) {
             case "FunctionValue":
                 console.warn(
@@ -81,6 +122,14 @@ const evaluate = (stasisNode, stasisModule) => {
             // TODO: Fill out
         }
 
+        if (owner.type === "UndefinedValue")
+            return {
+                error: "Cannot perform a member access with the owner set to undefined",
+            };
+
+        if (owner.type === "NullValue")
+            throw "Cannot perform a member access with the owner set to null";
+
         if (owner.type === "StringValue") {
             // Iterate through possible keys for strings
         }
@@ -88,11 +137,12 @@ const evaluate = (stasisNode, stasisModule) => {
             // Iterate through possible keys for strings
         }
         if (owner.type === "ObjectValue") {
-            // TODO: Actually do this
-            return { type: "FunctionValue", value: owner.value[key.value] };
+            if (key.value in owner.value) return owner.value[key.value];
+            return { type: "UndefinedValue" };
         }
+        throw `Member Access unsupported owner type: ${owner.type}`;
     }
-    throw `Unsupported type: ${stasisType.type}`;
+    throw `Unsupported type: ${stasisNode.type}`;
 };
 
-validateModule(require("../workingexamples/basic.stasis.js"));
+validateModule(require("../workingexamples/basicbroken2.stasis.js"));

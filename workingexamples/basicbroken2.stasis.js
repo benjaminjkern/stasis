@@ -2,7 +2,7 @@ const CONSOLE_OBJECT = {
     log: {
         type: "FunctionValue",
         parameters: [],
-        returns: { type: "Undefined" },
+        returns: { type: "UndefinedValue" },
         value: console.log,
     },
 };
@@ -28,6 +28,12 @@ module.exports = {
             callee: { stasisIndex: 2 },
             arguments: [{ stasisIndex: 0 }],
         },
+        {
+            type: "MemberAccess",
+            owner: { stasisIndex: 4 },
+            key: { stasisIndex: 6 },
+        },
+        { type: "StringValue", value: "hello" },
     ],
-    statements: [{ stasisIndex: 4 }],
+    statements: [{ stasisIndex: 5 }],
 };
