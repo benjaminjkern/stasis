@@ -1,30 +1,33 @@
-interface RawValue {}
-
-abstract class Value {
-    uses: [Usage];
-}
-class StringValue extends Value implements RawValue {
+abstract class Value {}
+class StringValue extends Value {
     value: string;
 }
-class NumberValue extends Value implements RawValue {
+class NumberValue extends Value {
     value: number;
 }
-class FunctionValue extends Value implements RawValue {
+
+class FunctionValue extends Value {
     parameters: [FunctionArgumentValue];
-    possibleReturns: [FunctionReturnValue];
+    returns: Value;
+    mutations: [Usage];
 }
 class FunctionArgumentValue extends Value {
-    function: FunctionValue;
-}
-
-class FunctionReturnValue {
-    function: FunctionValue;
-    returnValue: Value;
+    uses: [Usage];
 }
 
 /******** */
 
 abstract class Usage extends Value {}
+
+class ObjectTemplate extends Usage {
+    entries: [{ key: Value; value: Value } | SpreadValue];
+}
+class ArrayTemplate extends Usage {
+    entries: [Value | SpreadValue];
+}
+class SpreadValue {
+    value: Value;
+}
 class MemberAccess extends Usage {
     owner: Value;
     key: Value;

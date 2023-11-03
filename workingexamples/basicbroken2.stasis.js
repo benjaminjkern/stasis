@@ -1,7 +1,12 @@
 const CONSOLE_OBJECT = {
     log: {
         type: "FunctionValue",
-        parameters: [],
+        parameters: [
+            {
+                type: "FunctionArgumentValue",
+                spread: true,
+            },
+        ],
         returns: { type: "UndefinedValue" },
         value: console.log,
     },

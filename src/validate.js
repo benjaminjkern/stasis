@@ -7,7 +7,12 @@ const validateModule = (stasisModule) => {
 };
 
 const USAGE_TYPES = ["Call", "MemberAccess"];
-const RAW_VALUE_TYPES = ["StringValue", "NumberValue", "ObjectValue"];
+const RAW_VALUE_TYPES = [
+    "StringValue",
+    "NumberValue",
+    "ObjectValue",
+    "FunctionValue",
+];
 const ALGEBRAIC_TYPES = [];
 
 const evaluate = (stasisNode, stasisModule) => {
@@ -17,8 +22,8 @@ const evaluate = (stasisNode, stasisModule) => {
             stasisModule
         );
 
+    // console.log("Evaluating", stasisNode);
     if (RAW_VALUE_TYPES.includes(stasisNode.type)) return stasisNode;
-    console.log("Evaluating", stasisNode);
 
     // Need to Consolidate multiple possible values into one
     // if (stasisNode.type === "MultiplePossibleValues") {
@@ -53,24 +58,34 @@ const evaluate = (stasisNode, stasisModule) => {
 
     if (stasisNode.type === "Call") {
         const callee = evaluate(stasisNode.callee, stasisModule);
-        if (callee.type !== "FunctionValue") {
-            throw "Callee must be a function value!";
-        }
         const evaluatedArguments = stasisNode.arguments.map((arg) =>
             evaluate(arg, stasisModule)
         );
-        // Need to account for multiple types here
-        // for (let i = 0; i < callee.parameters.length; i++) {
-        //     canNodeBeValue(
-        //         callee.parameters[i],
-        //         evaluatedArguments[i],
-        //         stasisModule
-        //     );
-        // }
-        // Need to not actually call the function
-        callee.value(...evaluatedArguments.map((arg) => arg.value));
-        // Need to account for multiple types and input-dependent types
-        return callee.returns;
+        if (callee.type === "FunctionValue") {
+            // Need to account for spread parameters & default parameters
+
+            // Need to not actually call the function
+            // callee.value(...evaluatedArguments.map((arg) => arg.value));
+            // Need to account for multiple types and input-dependent types
+            return evaluate(
+                callee.returns,
+                createCallContext(
+                    callee.parameters,
+                    evaluatedArguments,
+                    stasisModule
+                )
+            );
+        }
+        if (callee.type === "BuiltInFunctionValue") {
+            return {
+                type: "StringValue",
+                value: callee.value(
+                    ...evaluatedArguments.map((arg) => arg.value)
+                ),
+            };
+        }
+        console.warn("Callee must be a function value!", callee);
+        throw "Callee must be a function value!";
     }
 
     if (stasisNode.type === "MemberAccess") {
@@ -109,6 +124,7 @@ const evaluate = (stasisNode, stasisModule) => {
             };
 
         switch (key.type) {
+            case "BuiltInFunctionValue":
             case "FunctionValue":
                 console.warn(
                     `Warning: This will result in a member access with a function value as a key, which gets turned into a string. This is possible, but probably not what you want!`
@@ -131,18 +147,80 @@ const evaluate = (stasisNode, stasisModule) => {
             throw "Cannot perform a member access with the owner set to null";
 
         if (owner.type === "StringValue") {
+            if (key.value === "charAt")
+                return {
+                    type: "BuiltInFunctionValue",
+                    value: owner.value.charAt,
+                };
+            if (key.value === "toUpperCase")
+                return {
+                    type: "BuiltInFunctionValue",
+                    value: owner.value.toUpperCase,
+                };
+            if (key.value === "slice")
+                return {
+                    type: "BuiltInFunctionValue",
+                    value: owner.value.slice,
+                };
             // Iterate through possible keys for strings
+            console.warn(
+                `Warning: key not in object, returning undefined`,
+                owner,
+                key
+            );
+            return { type: "UndefinedValue" };
         }
         if (owner.type === "NumberValue") {
             // Iterate through possible keys for strings
+            console.warn(
+                `Warning: key not in object, returning undefined`,
+                owner,
+                key
+            );
+            return { type: "UndefinedValue" };
         }
         if (owner.type === "ObjectValue") {
             if (key.value in owner.value) return owner.value[key.value];
+            console.warn(
+                `Warning: key not in object, returning undefined`,
+                owner,
+                key
+            );
             return { type: "UndefinedValue" };
         }
         throw `Member Access unsupported owner type: ${owner.type}`;
     }
+    if (stasisNode.type === "BinaryOperation") {
+        const leftSide = evaluate(stasisNode.leftSide, stasisModule);
+        const rightSide = evaluate(stasisNode.rightSide, stasisModule);
+        switch (stasisNode.operator) {
+            case "+":
+                if (
+                    !["StringValue", "NumberValue"].includes(leftSide.type) ||
+                    !["StringValue", "NumberValue"].includes(rightSide.type)
+                )
+                    console.warn(
+                        `Warning: + operator is really only designed for numbers and strings`
+                    );
+                return leftSide.value + rightSide.value;
+        }
+        throw `Unsupported operator: ${stasisNode.operator}`;
+    }
     throw `Unsupported type: ${stasisNode.type}`;
 };
 
-validateModule(require("../workingexamples/basicbroken2.stasis.js"));
+const createCallContext = (parameters, args, stasisModule) => {
+    // console.log("createCallContext", parameters, args);
+    const nodes = [...stasisModule.nodes];
+    const copiedArgs = [...args];
+    for (const parameter of parameters) {
+        // Not accounting for non-spreads after spreads or defaults
+        const parameterNode = nodes[parameter.stasisIndex];
+        nodes[parameter.stasisIndex] = parameterNode.spread
+            ? copiedArgs.splice(0)
+            : copiedArgs.shift();
+    }
+    return { nodes };
+};
+
+validateModule(require("../workingexamples/capitalize.stasis.js"));
