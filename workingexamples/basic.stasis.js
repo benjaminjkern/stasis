@@ -1,33 +1,21 @@
-const CONSOLE_OBJECT = {
-    log: {
-        type: "FunctionValue",
-        parameters: [],
-        returns: { type: "Undefined" },
-        value: console.log,
-    },
-};
-
 module.exports = {
     nodes: [
-        {
-            type: "NumberValue",
-            value: 5,
-        },
-        {
-            type: "ObjectValue",
-            value: CONSOLE_OBJECT,
-        },
+        { type: "NumberValue", value: 5 },
+        { type: "StringValue", value: "log" },
         {
             type: "MemberAccess",
-            owner: { stasisIndex: 1 },
-            key: { stasisIndex: 3 },
+            owner: { builtIn: true, name: "console" },
+            key: { stasisIndex: 1 },
         },
-        { type: "StringValue", value: "log" },
         {
             type: "Call",
             callee: { stasisIndex: 2 },
             arguments: [{ stasisIndex: 0 }],
         },
     ],
-    statements: [{ stasisIndex: 4 }],
+    statements: [{ stasisIndex: 3 }],
+    identifiers: {
+        console: { builtIn: true, name: "console" },
+        a: { stasisIndex: 0 },
+    },
 };

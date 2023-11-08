@@ -6,7 +6,7 @@ const validateModule = (stasisModule) => {
     }
 };
 
-const USAGE_TYPES = ["Call", "MemberAccess"];
+const USAGE_TYPES = ["Call", "MemberAccess", "BinaryOperation"];
 const RAW_VALUE_TYPES = [
     "StringValue",
     "NumberValue",
