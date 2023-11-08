@@ -82,6 +82,9 @@ const compileProgram = (moduleNode) => {
             }
             continue;
         }
+        if (statement.type === "FunctionDeclaration") {
+            throw "Unimplemented";
+        }
         if (statement.type === "ExpressionStatement") {
             stasisModule.statements.push(
                 compileExpression(statement.expression, stasisModule)
@@ -112,4 +115,4 @@ module.exports = (fullFileName) => {
     fs.appendFileSync(stasisFile, inspect(compiledProgram, false));
 };
 
-module.exports("./workingexamples/basic.js");
+module.exports("./workingexamples/capitalize.js");
