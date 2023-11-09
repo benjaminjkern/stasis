@@ -186,6 +186,11 @@ const compileStatementBlockBody = (statements, stasisModule) => {
             ).returns.push(compileExpression(statement.argument, stasisModule));
             continue;
         }
+        if (statement.type === "IfStatement") {
+            console.log(statement);
+            throw "NOT WORKING YET";
+            continue;
+        }
         throw `Unknown statement type: ${statement.type}`;
     }
 };
