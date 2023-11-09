@@ -6,7 +6,7 @@ const stasisCli = (...[node, index, inputFile]) => {
         console.log("Usage: node index [file]");
         return;
     }
-    const stasisModule = compile(inputFile, false);
+    const stasisModule = compile(inputFile);
     validate(stasisModule);
 };
 stasisCli(...process.argv);

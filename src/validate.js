@@ -1,7 +1,11 @@
 module.exports = (stasisModule) => {
     console.log("Validating module");
     for (const usage of stasisModule.statements) {
-        evaluate(usage, stasisModule);
+        try {
+            evaluate(usage, stasisModule);
+        } catch (error) {
+            console.error(error);
+        }
     }
 };
 
@@ -44,10 +48,15 @@ const evaluate = (stasisNode, stasisModule) => {
     if (stasisNode.type === "ObjectTemplate") {
         return {
             type: "ObjectValue",
-            value: stasisNode.values.reduce((p, { key, value }) => ({
-                ...p,
-                [evaluate(key, stasisModule)]: evaluate(value, stasisModule),
-            })),
+            value: stasisNode.values.reduce((p, { key, value }) => {
+                const evaluatedKey = evaluate(key, stasisModule);
+                if (["NumberValue", "StringValue"].includes(evaluatedKey.type))
+                    return {
+                        ...p,
+                        [evaluatedKey.value]: evaluate(value, stasisModule),
+                    };
+                throw `Cannot deal with key type: ${evaluatedKey.type}!`;
+            }, {}),
         };
     }
 

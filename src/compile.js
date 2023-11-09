@@ -18,37 +18,44 @@ const compileDeclaration = (declaration, stasisModule) => {
         );
         return;
     }
-    if (declaration.type === "FunctionDeclaration") {
-        if (declaration.id.type !== "Identifier")
-            throw "Cannot yet deal with FunctionDeclarations with non-identifier ids!";
-        const functionValue = {
-            type: "FunctionValue",
-            parameters: [],
-            returns: [],
-            mutations: [], // unused
-        };
-        const functionNode = addNode(functionValue, stasisModule);
-        for (const param of declaration.params) {
-            if (param.type !== "Identifier")
-                throw "Cannot yet deal with FunctionDeclarations with non-identifier params!";
-            const paramNode = addNode(
-                { type: "FunctionArgumentValue" },
-                stasisModule
-            );
-            stasisModule.identifiers[param.name] = paramNode;
-            functionValue.parameters.push(paramNode);
-        }
-        stasisModule.identifiers[declaration.id.name] = functionNode;
-        stasisModule.currentFunction = functionNode;
-
-        if (declaration.body.type !== "BlockStatement")
-            throw "Cannot yet deal with FunctionDeclarations with non-blockstatement bodies!";
-        compileStatementBlockBody(declaration.body.body, stasisModule);
-        // TODO: Do something to reset identifiers to how they were before sending them into the block
-        stasisModule.currentFunction = undefined;
-        return;
-    }
     throw `Unknown declaration type: ${declaration.type}`;
+};
+
+const compileFunction = (functionDeclaration, stasisModule) => {
+    const functionValue = {
+        type: "FunctionValue",
+        parameters: [],
+        returns: [],
+        mutations: [], // unused
+    };
+    const functionNode = addNode(functionValue, stasisModule);
+
+    if (functionDeclaration.id) {
+        if (functionDeclaration.id.type !== "Identifier")
+            throw "Cannot yet deal with FunctionDeclarations with non-identifier ids!";
+        stasisModule.identifiers[functionDeclaration.id.name] = functionNode;
+    }
+    for (const param of functionDeclaration.params) {
+        if (param.type !== "Identifier")
+            throw "Cannot yet deal with FunctionDeclarations with non-identifier params!";
+        const paramNode = addNode(
+            { type: "FunctionArgumentValue" },
+            stasisModule
+        );
+        stasisModule.identifiers[param.name] = paramNode;
+        functionValue.parameters.push(paramNode);
+    }
+    stasisModule.currentFunction = functionNode;
+    if (functionDeclaration.body.type === "BlockStatement") {
+        compileStatementBlockBody(functionDeclaration.body.body, stasisModule);
+    } else {
+        functionValue.returns.push(
+            compileExpression(functionDeclaration.body, stasisModule)
+        );
+    }
+    // TODO: Do something to reset identifiers to how they were before sending them into the block
+    stasisModule.currentFunction = undefined;
+    return functionNode;
 };
 
 const makeStasisValue = (value) => {
@@ -83,6 +90,12 @@ const compileExpression = (expression, stasisModule) => {
             });
         }
         return addNode(objectValue, stasisModule);
+    }
+    if (expression.type === "ArrowFunctionExpression") {
+        // Unsure what id & expression are
+        if (expression.async) throw "No async functions (yet)";
+        if (expression.generator) throw "No generator functions (yet)";
+        return compileFunction(expression, stasisModule);
     }
     if (expression.type === "Identifier") {
         if (!stasisModule.identifiers[expression.name])
@@ -138,6 +151,7 @@ const compileProgram = (moduleNode) => {
         statements: [],
         identifiers: {
             console: { builtIn: true, name: "console" },
+            undefined: { builtIn: true, name: "undefined" },
         },
     };
     if (moduleNode.type !== "Program") throw "Tried to compile a non-program!";
@@ -154,7 +168,7 @@ const compileStatementBlockBody = (statements, stasisModule) => {
             continue;
         }
         if (statement.type === "FunctionDeclaration") {
-            compileDeclaration(statement, stasisModule);
+            compileFunction(statement, stasisModule);
             continue;
         }
         if (statement.type === "ExpressionStatement") {
