@@ -1,6 +1,7 @@
 const acorn = require("acorn");
 const fs = require("fs");
 const { inspect } = require("./utils");
+const { getStasisNode } = require("./stasisUtils");
 
 const addNode = (node, stasisModule) => {
     const stasisIndex = stasisModule.nodes.push(node) - 1;
@@ -17,6 +18,36 @@ const compileDeclaration = (declaration, stasisModule) => {
         );
         return;
     }
+    if (declaration.type === "FunctionDeclaration") {
+        if (declaration.id.type !== "Identifier")
+            throw "Cannot yet deal with FunctionDeclarations with non-identifier ids!";
+        const functionValue = {
+            type: "FunctionValue",
+            parameters: [],
+            returns: [],
+            mutations: [], // unused
+        };
+        const functionNode = addNode(functionValue, stasisModule);
+        for (const param of declaration.params) {
+            if (param.type !== "Identifier")
+                throw "Cannot yet deal with FunctionDeclarations with non-identifier params!";
+            const paramNode = addNode(
+                { type: "FunctionArgumentValue" },
+                stasisModule
+            );
+            stasisModule.identifiers[param.name] = paramNode;
+            functionValue.parameters.push(paramNode);
+        }
+        stasisModule.identifiers[declaration.id.name] = functionNode;
+        stasisModule.currentFunction = functionNode;
+
+        if (declaration.body.type !== "BlockStatement")
+            throw "Cannot yet deal with FunctionDeclarations with non-blockstatement bodies!";
+        compileStatementBlockBody(declaration.body.body, stasisModule);
+        // TODO: Do something to reset identifiers to how they were before sending them into the block
+        stasisModule.currentFunction = undefined;
+        return;
+    }
     throw `Unknown declaration type: ${declaration.type}`;
 };
 
@@ -29,6 +60,46 @@ const makeStasisValue = (value) => {
 const compileExpression = (expression, stasisModule) => {
     if (expression.type === "Literal")
         return addNode(makeStasisValue(expression.value), stasisModule);
+    if (expression.type === "ObjectExpression") {
+        const objectValue = { type: "ObjectTemplate", values: [] };
+        for (const prop of expression.properties) {
+            if (prop.type !== "Property")
+                throw `Cannot deal with object property type: ${prop.type}`;
+            if (prop.method) throw `Cannot deal with object property methods!`;
+            if (prop.kind !== "init")
+                throw `Cannot deal with object property kind other than init! (IDK what this is at the moment)`;
+            objectValue.values.push({
+                key:
+                    prop.computed || prop.key.type === "Literal"
+                        ? compileExpression(prop.key, stasisModule)
+                        : compileExpression(
+                              {
+                                  type: "Literal",
+                                  value: prop.key.name,
+                              },
+                              stasisModule
+                          ),
+                value: compileExpression(prop.value, stasisModule),
+            });
+        }
+        return addNode(objectValue, stasisModule);
+    }
+    if (expression.type === "Identifier") {
+        if (!stasisModule.identifiers[expression.name])
+            throw `Undefined identifier: ${expression.name}`;
+
+        return stasisModule.identifiers[expression.name];
+    }
+    if (expression.type === "BinaryExpression")
+        return addNode(
+            {
+                type: "BinaryOperation",
+                operator: expression.operator,
+                leftSide: compileExpression(expression.left, stasisModule),
+                rightSide: compileExpression(expression.right, stasisModule),
+            },
+            stasisModule
+        );
     if (expression.type === "CallExpression")
         return addNode(
             {
@@ -45,9 +116,10 @@ const compileExpression = (expression, stasisModule) => {
             {
                 type: "MemberAccess",
                 owner: compileExpression(expression.object, stasisModule),
-                key: expression.computed
+                key: expression.computed // Might cause problems - Inconsistent with object templates
                     ? compileExpression(expression.property, stasisModule)
                     : compileExpression(
+                          // Compile it so it gets a stasis value
                           {
                               type: "Literal",
                               value: expression.property.name,
@@ -57,12 +129,6 @@ const compileExpression = (expression, stasisModule) => {
             },
             stasisModule
         );
-    if (expression.type === "Identifier") {
-        if (!stasisModule.identifiers[expression.name])
-            throw `Undefined identifier: ${expression.name}`;
-
-        return stasisModule.identifiers[expression.name];
-    }
     throw `Unknown expression type: ${expression.type}`;
 };
 
@@ -75,7 +141,12 @@ const compileProgram = (moduleNode) => {
         },
     };
     if (moduleNode.type !== "Program") throw "Tried to compile a non-program!";
-    for (const statement of moduleNode.body) {
+    compileStatementBlockBody(moduleNode.body, stasisModule);
+    return stasisModule;
+};
+
+const compileStatementBlockBody = (statements, stasisModule) => {
+    for (const statement of statements) {
         if (statement.type === "VariableDeclaration") {
             for (const declaration of statement.declarations) {
                 compileDeclaration(declaration, stasisModule);
@@ -83,7 +154,8 @@ const compileProgram = (moduleNode) => {
             continue;
         }
         if (statement.type === "FunctionDeclaration") {
-            throw "Unimplemented";
+            compileDeclaration(statement, stasisModule);
+            continue;
         }
         if (statement.type === "ExpressionStatement") {
             stasisModule.statements.push(
@@ -91,9 +163,17 @@ const compileProgram = (moduleNode) => {
             );
             continue;
         }
+        if (statement.type === "ReturnStatement") {
+            if (!stasisModule.currentFunction)
+                throw "Return statement not inside of a function (Acorn should have caught this)";
+            getStasisNode(
+                stasisModule.currentFunction,
+                stasisModule
+            ).returns.push(compileExpression(statement.argument, stasisModule));
+            continue;
+        }
         throw `Unknown statement type: ${statement.type}`;
     }
-    return stasisModule;
 };
 
 module.exports = (fullFileName) => {

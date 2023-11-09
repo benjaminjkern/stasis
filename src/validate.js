@@ -2,7 +2,6 @@ const validateModule = (stasisModule) => {
     console.log("Validating module");
     for (const usage of stasisModule.statements) {
         const result = evaluate(usage, stasisModule);
-        if (result.error) console.log(result);
     }
 };
 
@@ -22,7 +21,7 @@ const evaluate = (stasisNode, stasisModule) => {
             stasisModule
         );
 
-    // console.log("Evaluating", stasisNode);
+    console.log("Evaluating", stasisNode);
     if (RAW_VALUE_TYPES.includes(stasisNode.type)) return stasisNode;
 
     // Need to Consolidate multiple possible values into one
@@ -42,19 +41,15 @@ const evaluate = (stasisNode, stasisModule) => {
     //     return { type: "MultiplePossibleValues", possibleValues };
     // }
 
-    // Need to add ObjectTemplate as a usage
-    // if (stasisNode.type === "ObjectValue") {
-    //     return {type: "EvaluatedObjectValue"stasisNode.values.reduce(
-    //         (p, { key, value }) => ({
-    //             ...p,
-    //             [evaluate(getStasisNode(key, stasisModule), stasisModule)]:
-    //                 evaluate(
-    //                     getStasisNode(value, stasisModule),
-    //                     stasisModule
-    //                 ),
-    //         })
-    //     );
-    // }
+    if (stasisNode.type === "ObjectTemplate") {
+        return {
+            type: "ObjectValue",
+            value: stasisNode.values.reduce((p, { key, value }) => ({
+                ...p,
+                [evaluate(key, stasisModule)]: evaluate(value, stasisModule),
+            })),
+        };
+    }
 
     if (stasisNode.type === "Call") {
         const callee = evaluate(stasisNode.callee, stasisModule);
@@ -63,18 +58,19 @@ const evaluate = (stasisNode, stasisModule) => {
         );
         if (callee.type === "FunctionValue") {
             // Need to account for spread parameters & default parameters
-
-            // Need to not actually call the function
-            // callee.value(...evaluatedArguments.map((arg) => arg.value));
+            // Need to do mutations
             // Need to account for multiple types and input-dependent types
-            return evaluate(
-                callee.returns,
-                createCallContext(
-                    callee.parameters,
-                    evaluatedArguments,
-                    stasisModule
-                )
-            );
+            if (callee.returns.length === 0) return { type: "UndefinedValue" };
+            if (callee.returns.length === 1)
+                return evaluate(
+                    callee.returns[0],
+                    createCallContext(
+                        callee.parameters,
+                        evaluatedArguments,
+                        stasisModule
+                    )
+                );
+            throw "Multiple returns RAHH";
         }
         if (callee.type === "BuiltInFunctionValue") {
             return {
@@ -84,7 +80,6 @@ const evaluate = (stasisNode, stasisModule) => {
                 ),
             };
         }
-        console.warn("Callee must be a function value!", callee);
         throw "Callee must be a function value!";
     }
 
