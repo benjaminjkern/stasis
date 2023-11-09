@@ -1,7 +1,7 @@
-const validateModule = (stasisModule) => {
+module.exports = (stasisModule) => {
     console.log("Validating module");
     for (const usage of stasisModule.statements) {
-        const result = evaluate(usage, stasisModule);
+        evaluate(usage, stasisModule);
     }
 };
 
@@ -21,7 +21,7 @@ const evaluate = (stasisNode, stasisModule) => {
             stasisModule
         );
 
-    console.log("Evaluating", stasisNode);
+    // console.log("Evaluating", stasisNode);
     if (RAW_VALUE_TYPES.includes(stasisNode.type)) return stasisNode;
 
     // Need to Consolidate multiple possible values into one
@@ -61,15 +61,21 @@ const evaluate = (stasisNode, stasisModule) => {
             // Need to do mutations
             // Need to account for multiple types and input-dependent types
             if (callee.returns.length === 0) return { type: "UndefinedValue" };
-            if (callee.returns.length === 1)
-                return evaluate(
-                    callee.returns[0],
-                    createCallContext(
-                        callee.parameters,
-                        evaluatedArguments,
-                        stasisModule
-                    )
-                );
+            if (callee.returns.length === 1) {
+                try {
+                    return evaluate(
+                        callee.returns[0],
+                        createCallContext(
+                            callee.parameters,
+                            evaluatedArguments,
+                            stasisModule
+                        )
+                    );
+                } catch (err) {
+                    // console.warn("Calling will result in an error!");
+                    throw "Calling will result in an error!";
+                }
+            }
             throw "Multiple returns RAHH";
         }
         if (callee.type === "BuiltInFunctionValue") {
@@ -134,9 +140,7 @@ const evaluate = (stasisNode, stasisModule) => {
         }
 
         if (owner.type === "UndefinedValue")
-            return {
-                error: "Cannot perform a member access with the owner set to undefined",
-            };
+            throw "Cannot perform a member access with the owner set to undefined";
 
         if (owner.type === "NullValue")
             throw "Cannot perform a member access with the owner set to null";
@@ -217,5 +221,3 @@ const createCallContext = (parameters, args, stasisModule) => {
     }
     return { nodes };
 };
-
-validateModule(require("../workingexamples/capitalize.stasis.js"));

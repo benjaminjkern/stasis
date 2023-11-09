@@ -1,7 +1,7 @@
 const acorn = require("acorn");
 const fs = require("fs");
-const { inspect } = require("./utils");
-const { getStasisNode } = require("./stasisUtils");
+const { getStasisNode, getStasisFiles } = require("./stasisUtils");
+const { hash } = require("./utils");
 
 const addNode = (node, stasisModule) => {
     const stasisIndex = stasisModule.nodes.push(node) - 1;
@@ -176,23 +176,23 @@ const compileStatementBlockBody = (statements, stasisModule) => {
     }
 };
 
-module.exports = (fullFileName) => {
-    // Don't do any file stuff if it fails to compile
+module.exports = (inputFile, writeFile = true) => {
+    const { fullFile, stasisFile, stasisFileName } = getStasisFiles(inputFile);
+    const checksum = hash(fullFile);
+    if (stasisFile) {
+        const stasisProgram = JSON.parse(stasisFile);
+        if (checksum === stasisProgram.checksum) return stasisProgram;
+    }
     const compiledProgram = compileProgram(
-        acorn.parse(fs.readFileSync(fullFileName), {
+        acorn.parse(fullFile, {
             ecmaVersion: 2020,
         })
     );
-
-    const fullPath = fullFileName.split("/");
-    const file = fullPath.slice(-1)[0];
-    const path = fullPath.slice(0, -1);
-    const [fileStart, fileEnding, ...rest] = file.split(".");
-    if (rest.length || fileEnding !== "js")
-        throw "Please only use files of the form [filename].js";
-    const stasisFile = [...path, `${fileStart}.stasis.js`].join("/");
-    fs.writeFileSync(stasisFile, "module.exports = ");
-    fs.appendFileSync(stasisFile, inspect(compiledProgram, false));
+    compiledProgram.checksum = checksum;
+    if (writeFile)
+        fs.writeFileSync(
+            stasisFileName,
+            JSON.stringify(compiledProgram, undefined, 4)
+        );
+    return compiledProgram;
 };
-
-module.exports("./workingexamples/capitalize.js");
