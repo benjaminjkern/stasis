@@ -1,11 +1,19 @@
 const acorn = require("acorn");
 const fs = require("fs");
-const { getStasisNode, getStasisFiles } = require("./stasisUtils");
+const {
+    getStasisNode,
+    getStasisFiles,
+    makeStasisValue,
+} = require("./stasisUtils");
 const { hash } = require("./utils");
 
-const addNode = (node, stasisModule) => {
+const addNode = (node, stasisModule, acornNode) => {
     const stasisIndex = stasisModule.nodes.length;
-    stasisModule.nodes.push({ resolvedStasisIndex: stasisIndex, ...node });
+    stasisModule.nodes.push({
+        resolvedStasisIndex: stasisIndex,
+        ...node,
+        codePosition: [acornNode.start, acornNode.end],
+    });
     return { stasisIndex };
 };
 
@@ -29,7 +37,11 @@ const compileFunction = (functionDeclaration, stasisModule) => {
         returns: [],
         mutations: [], // unused
     };
-    const functionNode = addNode(functionValue, stasisModule);
+    const functionNode = addNode(
+        functionValue,
+        stasisModule,
+        functionDeclaration
+    );
 
     if (functionDeclaration.id) {
         if (functionDeclaration.id.type !== "Identifier")
@@ -41,7 +53,8 @@ const compileFunction = (functionDeclaration, stasisModule) => {
             throw "Cannot yet deal with FunctionDeclarations with non-identifier params!";
         const paramNode = addNode(
             { type: "FunctionArgumentValue" },
-            stasisModule
+            stasisModule,
+            param
         );
         stasisModule.identifiers[param.name] = paramNode;
         functionValue.parameters.push(paramNode);
@@ -59,15 +72,13 @@ const compileFunction = (functionDeclaration, stasisModule) => {
     return functionNode;
 };
 
-const makeStasisValue = (value) => {
-    if (typeof value === "number") return { type: "NumberValue", value };
-    if (typeof value === "string") return { type: "StringValue", value };
-    throw `Unknown raw value type: ${typeof value}`;
-};
-
 const compileExpression = (expression, stasisModule) => {
     if (expression.type === "Literal")
-        return addNode(makeStasisValue(expression.value), stasisModule);
+        return addNode(
+            makeStasisValue(expression.value),
+            stasisModule,
+            expression
+        );
     if (expression.type === "ObjectExpression") {
         const objectValue = { type: "ObjectTemplate", values: [] };
         for (const prop of expression.properties) {
@@ -84,13 +95,15 @@ const compileExpression = (expression, stasisModule) => {
                               {
                                   type: "Literal",
                                   value: prop.key.name,
+                                  start: prop.start,
+                                  end: prop.end,
                               },
                               stasisModule
                           ),
                 value: compileExpression(prop.value, stasisModule),
             });
         }
-        return addNode(objectValue, stasisModule);
+        return addNode(objectValue, stasisModule, expression);
     }
     if (expression.type === "ArrowFunctionExpression") {
         // Unsure what id & expression are
@@ -112,7 +125,8 @@ const compileExpression = (expression, stasisModule) => {
                 leftSide: compileExpression(expression.left, stasisModule),
                 rightSide: compileExpression(expression.right, stasisModule),
             },
-            stasisModule
+            stasisModule,
+            expression
         );
     if (expression.type === "CallExpression")
         return addNode(
@@ -123,7 +137,8 @@ const compileExpression = (expression, stasisModule) => {
                     compileExpression(arg, stasisModule)
                 ),
             },
-            stasisModule
+            stasisModule,
+            expression
         );
     if (expression.type === "MemberExpression")
         return addNode(
@@ -137,27 +152,16 @@ const compileExpression = (expression, stasisModule) => {
                           {
                               type: "Literal",
                               value: expression.property.name,
+                              start: expression.property.start,
+                              end: expression.property.end,
                           },
                           stasisModule
                       ),
             },
-            stasisModule
+            stasisModule,
+            expression
         );
     throw `Unknown expression type: ${expression.type}`;
-};
-
-const compileProgram = (moduleNode) => {
-    const stasisModule = {
-        nodes: [],
-        statements: [],
-        identifiers: {
-            console: { builtIn: true, name: "console" },
-            undefined: { builtIn: true, name: "undefined" },
-        },
-    };
-    if (moduleNode.type !== "Program") throw "Tried to compile a non-program!";
-    compileStatementBlockBody(moduleNode.body, stasisModule);
-    return stasisModule;
 };
 
 const compileStatementBlockBody = (statements, stasisModule) => {
@@ -195,12 +199,26 @@ const compileStatementBlockBody = (statements, stasisModule) => {
         throw `Unknown statement type: ${statement.type}`;
     }
 };
+const compileProgram = (moduleNode) => {
+    const stasisModule = {
+        nodes: [],
+        statements: [],
+        identifiers: {
+            console: { type: "BuiltInObject", name: "console" },
+            undefined: { type: "UndefinedValue" },
+        },
+    };
+    if (moduleNode.type !== "Program") throw "Tried to compile a non-program!";
+    compileStatementBlockBody(moduleNode.body, stasisModule);
+    return stasisModule;
+};
 
 module.exports = (
     inputFile,
     { writeFile = true, forceCompile = false } = {}
 ) => {
-    const { fullFile, stasisFile, stasisFileName } = getStasisFiles(inputFile);
+    const { fullFile, fullFileName, stasisFile, stasisFileName } =
+        getStasisFiles(inputFile);
     const checksum = hash(fullFile);
     if (!forceCompile && stasisFile) {
         const stasisProgram = JSON.parse(stasisFile);
@@ -216,6 +234,7 @@ module.exports = (
         })
     );
     compiledProgram.checksum = checksum;
+    compiledProgram.fileName = fullFileName;
     if (writeFile)
         fs.writeFileSync(
             stasisFileName,

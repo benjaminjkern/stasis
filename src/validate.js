@@ -1,3 +1,4 @@
+const { makeStasisValue, stasisError } = require("./stasisUtils");
 const { debugCalls } = require("./utils");
 
 const USAGE_TYPES = ["Call", "MemberAccess", "BinaryOperation"];
@@ -21,6 +22,75 @@ const createCallContext = (parameters, args, stasisModule) => {
             : copiedArgs.shift();
     }
     return { nodes };
+};
+
+const evaluateMemberAccess = (stasisNode, stasisModule) => {
+    const owner = evaluate(stasisNode.owner, stasisModule);
+
+    if (owner.type === "MultiplePossibleValues")
+        return {
+            type: "MultiplePossibleValues",
+            possibleValues: owner.possibleValues.map((value) =>
+                evaluate(
+                    {
+                        type: "MemberAccess",
+                        owner: value,
+                        key: stasisNode.key,
+                    },
+                    stasisModule
+                )
+            ),
+        };
+
+    const key = evaluate(stasisNode.key, stasisModule);
+
+    if (key.type === "MultiplePossibleValues")
+        return {
+            type: "MultiplePossibleValues",
+            possibleValues: key.possibleValues.map((value) =>
+                evaluate(
+                    {
+                        type: "MemberAccess",
+                        owner: stasisNode.owner,
+                        key: value,
+                    },
+                    stasisModule
+                )
+            ),
+        };
+
+    switch (key.type) {
+        case "BuiltInFunctionValue":
+        case "FunctionValue":
+            console.warn(
+                `Warning: This will result in a member access with a function value as a key, which gets turned into a string. This is possible, but probably not what you want!`
+            );
+            break;
+        case "ObjectValue":
+            console.warn(
+                `Warning: This will result in a member access with an object value as a key, which gets turned into a string. This is possible, but probably not what you want!`
+            );
+            break;
+        // TODO: Fill out
+    }
+
+    if (owner.type === "UndefinedValue")
+        throw "Cannot perform a member access with the owner set to undefined";
+
+    if (owner.type === "NullValue")
+        throw "Cannot perform a member access with the owner set to null";
+
+    if (RAW_VALUE_TYPES.includes(owner.type)) {
+        if (key.value in owner.value)
+            return makeStasisValue(owner.value[key.value]);
+        console.warn(
+            `Warning: key not in object, returning undefined`,
+            owner,
+            key
+        );
+        return { type: "UndefinedValue" };
+    }
+    throw `Member Access unsupported owner type: ${owner.type}`;
 };
 
 const evaluate = debugCalls(
@@ -96,117 +166,25 @@ const evaluate = debugCalls(
 
                 throw "Multiple returns RAHH";
             }
-            if (callee.type === "BuiltInFunctionValue")
-                return {
-                    type: "StringValue",
-                    value: callee.value(
-                        ...evaluatedArguments.map((arg) => arg.value)
-                    ),
-                };
+            if (callee.type === "BuiltInFunctionValue") {
+                const value = callee.value(
+                    ...evaluatedArguments.map((arg) => arg.value)
+                );
+                return makeStasisValue(value);
+            }
 
-            throw "Callee must be a function value!";
+            console.log(callee);
+
+            throw stasisError(
+                "Callee must be a function value!",
+                stasisNode,
+                stasisModule
+            );
         }
 
-        if (stasisNode.type === "MemberAccess") {
-            const owner = evaluate(stasisNode.owner, stasisModule);
+        if (stasisNode.type === "MemberAccess")
+            return evaluateMemberAccess(stasisNode, stasisModule);
 
-            if (owner.type === "MultiplePossibleValues")
-                return {
-                    type: "MultiplePossibleValues",
-                    possibleValues: owner.possibleValues.map((value) =>
-                        evaluate(
-                            {
-                                type: "MemberAccess",
-                                owner: value,
-                                key: stasisNode.key,
-                            },
-                            stasisModule
-                        )
-                    ),
-                };
-
-            const key = evaluate(stasisNode.key, stasisModule);
-
-            if (key.type === "MultiplePossibleValues")
-                return {
-                    type: "MultiplePossibleValues",
-                    possibleValues: key.possibleValues.map((value) =>
-                        evaluate(
-                            {
-                                type: "MemberAccess",
-                                owner: stasisNode.owner,
-                                key: value,
-                            },
-                            stasisModule
-                        )
-                    ),
-                };
-
-            switch (key.type) {
-                case "BuiltInFunctionValue":
-                case "FunctionValue":
-                    console.warn(
-                        `Warning: This will result in a member access with a function value as a key, which gets turned into a string. This is possible, but probably not what you want!`
-                    );
-                    break;
-                case "ObjectValue":
-                    console.warn(
-                        `Warning: This will result in a member access with an object value as a key, which gets turned into a string. This is possible, but probably not what you want!`
-                    );
-                    break;
-                // TODO: Fill out
-            }
-
-            if (owner.type === "UndefinedValue")
-                throw "Cannot perform a member access with the owner set to undefined";
-
-            if (owner.type === "NullValue")
-                throw "Cannot perform a member access with the owner set to null";
-
-            if (owner.type === "StringValue") {
-                if (key.value === "charAt")
-                    return {
-                        type: "BuiltInFunctionValue",
-                        value: owner.value.charAt,
-                    };
-                if (key.value === "toUpperCase")
-                    return {
-                        type: "BuiltInFunctionValue",
-                        value: owner.value.toUpperCase,
-                    };
-                if (key.value === "slice")
-                    return {
-                        type: "BuiltInFunctionValue",
-                        value: owner.value.slice,
-                    };
-                // Iterate through possible keys for strings
-                console.warn(
-                    `Warning: key not in object, returning undefined`,
-                    owner,
-                    key
-                );
-                return { type: "UndefinedValue" };
-            }
-            if (owner.type === "NumberValue") {
-                // Iterate through possible keys for strings
-                console.warn(
-                    `Warning: key not in object, returning undefined`,
-                    owner,
-                    key
-                );
-                return { type: "UndefinedValue" };
-            }
-            if (owner.type === "ObjectValue") {
-                if (key.value in owner.value) return owner.value[key.value];
-                console.warn(
-                    `Warning: key not in object, returning undefined`,
-                    owner,
-                    key
-                );
-                return { type: "UndefinedValue" };
-            }
-            throw `Member Access unsupported owner type: ${owner.type}`;
-        }
         if (stasisNode.type === "BinaryOperation") {
             const leftSide = evaluate(stasisNode.leftSide, stasisModule);
             const rightSide = evaluate(stasisNode.rightSide, stasisModule);
@@ -225,21 +203,23 @@ const evaluate = debugCalls(
             }
             throw `Unsupported operator: ${stasisNode.operator}`;
         }
-        throw `Unsupported type: ${stasisNode.type}`;
+        if (stasisNode.type === "BuiltInObject") {
+            if (stasisNode.name === "console")
+                return { type: "ObjectValue", value: console };
+            throw `Unknown builtin name: ${stasisNode.name}`;
+        }
+        throw stasisError(
+            `Unsupported type: ${stasisNode.type}`,
+            stasisNode,
+            stasisModule
+        );
     },
     "evaluate",
     [true]
 );
 module.exports = (stasisModule) => {
     console.log("Validating module");
-    let errors = false;
-    for (const usage of stasisModule.statements)
-        try {
-            evaluate(usage, stasisModule);
-        } catch (error) {
-            console.error(error);
-            errors = true;
-        }
+    for (const usage of stasisModule.statements) evaluate(usage, stasisModule);
 
-    if (!errors) console.log("Module validated");
+    console.log("Module validated");
 };

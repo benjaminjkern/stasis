@@ -24,4 +24,29 @@ module.exports = {
                 fs.readFileSync(stasisFileName),
         };
     },
+    makeStasisValue: (value) => {
+        if (typeof value === "number") return { type: "NumberValue", value };
+        if (typeof value === "string") return { type: "StringValue", value };
+        // These two shouldnt ever be called in compilation
+        if (typeof value === "function")
+            return { type: "BuiltInFunctionValue", value };
+        if (typeof value === "undefined") return { type: "UndefinedValue" };
+        throw `Unknown raw value type: ${typeof value}`;
+    },
+    stasisError: (string, stasisNode, stasisModule) => {
+        const fullFile = fs.readFileSync(stasisModule.fileName, "utf8");
+
+        const [before, during, after] = [
+            fullFile.slice(0, stasisNode.codePosition[0]),
+            fullFile.slice(
+                stasisNode.codePosition[0],
+                stasisNode.codePosition[1]
+            ),
+            fullFile.slice(stasisNode.codePosition[1]),
+        ];
+        const beforeSplitByLines = before.split("\n");
+        const rowNum = beforeSplitByLines.length;
+        const colNum = beforeSplitByLines[beforeSplitByLines.length - 1].length;
+        return `${stasisModule.fileName} (${rowNum}, ${colNum}): ${string}`;
+    },
 };
