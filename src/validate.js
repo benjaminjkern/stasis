@@ -1,5 +1,6 @@
 const { makeStasisValue, stasisError } = require("./stasisUtils");
 const { debugCalls } = require("./utils");
+require("colors");
 
 const USAGE_TYPES = ["Call", "MemberAccess", "BinaryOperation"];
 const RAW_VALUE_TYPES = [
@@ -62,31 +63,43 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
     switch (key.type) {
         case "BuiltInFunctionValue":
         case "FunctionValue":
-            console.warn(
-                `Warning: This will result in a member access with a function value as a key, which gets turned into a string. This is possible, but probably not what you want!`
+            stasisError(
+                `Warning: This will result in a member access with a function value as a key, which gets turned into a string. This is possible, but probably not what you want!`,
+                stasisNode,
+                stasisModule
             );
             break;
         case "ObjectValue":
-            console.warn(
-                `Warning: This will result in a member access with an object value as a key, which gets turned into a string. This is possible, but probably not what you want!`
+            stasisError(
+                `Warning: This will result in a member access with an object value as a key, which gets turned into a string. This is possible, but probably not what you want!`,
+                stasisNode,
+                stasisModule
             );
             break;
         // TODO: Fill out
     }
 
     if (owner.type === "UndefinedValue")
-        throw "Cannot perform a member access with the owner set to undefined";
+        throw stasisError(
+            "Cannot perform a member access with the owner set to undefined",
+            stasisNode,
+            stasisModule
+        );
 
     if (owner.type === "NullValue")
-        throw "Cannot perform a member access with the owner set to null";
+        throw stasisError(
+            "Cannot perform a member access with the owner set to null",
+            stasisNode,
+            stasisModule
+        );
 
     if (RAW_VALUE_TYPES.includes(owner.type)) {
         if (key.value in owner.value)
             return makeStasisValue(owner.value[key.value]);
-        console.warn(
+        stasisError(
             `Warning: key not in object, returning undefined`,
-            owner,
-            key
+            stasisNode,
+            stasisModule
         );
         return { type: "UndefinedValue" };
     }
@@ -161,7 +174,11 @@ const evaluate = debugCalls(
                         );
                     } catch (err) {
                         // console.warn("Calling will result in an error!");
-                        throw "Calling will result in an error!";
+                        throw stasisError(
+                            `Calling will result in an error: ${err}`,
+                            stasisNode,
+                            stasisModule
+                        );
                     }
 
                 throw "Multiple returns RAHH";
@@ -172,8 +189,6 @@ const evaluate = debugCalls(
                 );
                 return makeStasisValue(value);
             }
-
-            console.log(callee);
 
             throw stasisError(
                 "Callee must be a function value!",
@@ -196,8 +211,10 @@ const evaluate = debugCalls(
                         ) ||
                         !["StringValue", "NumberValue"].includes(rightSide.type)
                     )
-                        console.warn(
-                            `Warning: + operator is really only designed for numbers and strings`
+                        stasisError(
+                            `Warning: + operator is really only designed for numbers and strings`,
+                            stasisNode,
+                            stasisModule
                         );
                     return leftSide.value + rightSide.value;
             }
@@ -208,18 +225,21 @@ const evaluate = debugCalls(
                 return { type: "ObjectValue", value: console };
             throw `Unknown builtin name: ${stasisNode.name}`;
         }
-        throw stasisError(
-            `Unsupported type: ${stasisNode.type}`,
-            stasisNode,
-            stasisModule
-        );
+        throw `Unsupported type: ${stasisNode.type}`;
     },
     "evaluate",
     [true]
 );
 module.exports = (stasisModule) => {
     console.log("Validating module");
-    for (const usage of stasisModule.statements) evaluate(usage, stasisModule);
+    let errors = false;
+    for (const usage of stasisModule.statements)
+        try {
+            evaluate(usage, stasisModule);
+        } catch (err) {
+            errors = true;
+            console.log(err.red);
+        }
 
-    console.log("Module validated");
+    if (!errors) console.log("Module validated");
 };

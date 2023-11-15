@@ -3,6 +3,13 @@ function capitalize(str) {
 }
 
 capitalize("hello"); // Should be fine
-capitalize({ charAt: () => ({ toUpperCase: () => 5 }), slice: () => 5 }); // TECHNICALLY should also be fine
+capitalize({
+    charAt: () => ({
+        toUpperCase: () => 5,
+    }),
+    slice: () => 5,
+}); // TECHNICALLY should also be fine
 // capitalize({ a: 5 }); // Should return a stasis error
 // capitalize({ charAt: () => undefined }); // Should return a stasis error
+
+// shouldnt show

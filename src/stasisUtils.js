@@ -1,4 +1,7 @@
 const fs = require("fs");
+const PRINT_ERRORS = true;
+const LINE_CONTEXT = 2;
+
 module.exports = {
     getStasisNode: (stasisNode, stasisModule) => {
         if (stasisNode.stasisIndex === undefined) return stasisNode;
@@ -45,8 +48,59 @@ module.exports = {
             fullFile.slice(stasisNode.codePosition[1]),
         ];
         const beforeSplitByLines = before.split("\n");
+        const duringSplitByLines = during.split("\n");
+        const afterSplitByLines = after.split("\n");
+        afterSplitByLines.push("(End of file)".blue);
+
         const rowNum = beforeSplitByLines.length;
         const colNum = beforeSplitByLines[beforeSplitByLines.length - 1].length;
+        if (PRINT_ERRORS) {
+            const MAX_LINE_NUMBER_LENGTH = (
+                rowNum +
+                duringSplitByLines.length +
+                LINE_CONTEXT -
+                1
+            ).toString().length;
+            const niceLineNum = (lineNum) =>
+                lineNum.toString().padStart(MAX_LINE_NUMBER_LENGTH);
+
+            console.log(string.yellow);
+            console.log(
+                beforeSplitByLines
+                    .slice(-1 - LINE_CONTEXT, -1)
+                    .map(
+                        (line, i) =>
+                            `${niceLineNum(
+                                rowNum - LINE_CONTEXT + i
+                            )} | ${line}`
+                    )
+                    .join("\n")
+            );
+            console.log(
+                `${niceLineNum(rowNum)} ${">".yellow} ${
+                    beforeSplitByLines.slice(-1)[0]
+                }${duringSplitByLines
+                    .map((line, i) =>
+                        i === 0
+                            ? line.red
+                            : `${niceLineNum(rowNum + 1 + i)} ${">".yellow} ${
+                                  line.red
+                              }`
+                    )
+                    .join("\n")}${afterSplitByLines[0]}`
+            );
+            console.log(
+                afterSplitByLines
+                    .slice(1, 1 + LINE_CONTEXT)
+                    .map(
+                        (line, i) =>
+                            `${niceLineNum(
+                                rowNum + duringSplitByLines.length + i
+                            )} | ${line}`
+                    )
+                    .join("\n")
+            );
+        }
         return `${stasisModule.fileName} (${rowNum}, ${colNum}): ${string}`;
     },
 };
