@@ -4,7 +4,8 @@ const { getStasisNode, getStasisFiles } = require("./stasisUtils");
 const { hash } = require("./utils");
 
 const addNode = (node, stasisModule) => {
-    const stasisIndex = stasisModule.nodes.push(node) - 1;
+    const stasisIndex = stasisModule.nodes.length;
+    stasisModule.nodes.push({ resolvedStasisIndex: stasisIndex, ...node });
     return { stasisIndex };
 };
 
@@ -46,13 +47,13 @@ const compileFunction = (functionDeclaration, stasisModule) => {
         functionValue.parameters.push(paramNode);
     }
     stasisModule.currentFunction = functionNode;
-    if (functionDeclaration.body.type === "BlockStatement") {
+    if (functionDeclaration.body.type === "BlockStatement")
         compileStatementBlockBody(functionDeclaration.body.body, stasisModule);
-    } else {
+    else
         functionValue.returns.push(
             compileExpression(functionDeclaration.body, stasisModule)
         );
-    }
+
     // TODO: Do something to reset identifiers to how they were before sending them into the block
     stasisModule.currentFunction = undefined;
     return functionNode;
@@ -162,9 +163,9 @@ const compileProgram = (moduleNode) => {
 const compileStatementBlockBody = (statements, stasisModule) => {
     for (const statement of statements) {
         if (statement.type === "VariableDeclaration") {
-            for (const declaration of statement.declarations) {
+            for (const declaration of statement.declarations)
                 compileDeclaration(declaration, stasisModule);
-            }
+
             continue;
         }
         if (statement.type === "FunctionDeclaration") {
@@ -195,13 +196,20 @@ const compileStatementBlockBody = (statements, stasisModule) => {
     }
 };
 
-module.exports = (inputFile, writeFile = true) => {
+module.exports = (
+    inputFile,
+    { writeFile = true, forceCompile = false } = {}
+) => {
     const { fullFile, stasisFile, stasisFileName } = getStasisFiles(inputFile);
     const checksum = hash(fullFile);
-    if (stasisFile) {
+    if (!forceCompile && stasisFile) {
         const stasisProgram = JSON.parse(stasisFile);
-        if (checksum === stasisProgram.checksum) return stasisProgram;
+        if (checksum === stasisProgram.checksum) {
+            console.log(`Checksum was the same for ${stasisFileName}, reusing`);
+            return stasisProgram;
+        }
     }
+    console.log(`Compiling ${stasisFileName}`);
     const compiledProgram = compileProgram(
         acorn.parse(fullFile, {
             ecmaVersion: 2020,

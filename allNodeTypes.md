@@ -36,34 +36,13 @@ ObjectExpression
 
 # Implemented partially
 
-ArrayExpression
-- Need to account for case of multiple uses inside of an array literal that is then used somewhere else:
-```
-const a = b => [b, b][0];
-{
-    params: [
-        {name: b,
-        uses: [
-            {
-                type: 'inArray',
-                index: 0,
-                uses: [
-                    {
-                        type: 'member',
-                        property: 0
-                    }
-                ]
-            }
-        ]}
-    ]
-}
-```
-Property
-NewExpression
-ArrowFunctionExpression
 
 # Not implemented
 
+ArrayExpression
+Property
+NewExpression
+ArrowFunctionExpression
 Program
 DebuggerStatement
 DoWhileStatement
