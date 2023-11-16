@@ -117,7 +117,7 @@ const compileExpression = (expression, stasisModule) => {
         return addNode(objectValue, stasisModule, expression);
     }
     if (expression.type === "ArrowFunctionExpression") {
-        // Unsure what id & expression are
+        // TODO: Unsure what id & expression are
         if (expression.async) throw new Error("No async functions (yet)");
         if (expression.generator)
             throw new Error("No generator functions (yet)");
@@ -129,13 +129,28 @@ const compileExpression = (expression, stasisModule) => {
 
         return stasisModule.identifiers[expression.name];
     }
-    if (expression.type === "BinaryExpression")
+    if (
+        expression.type === "BinaryExpression" ||
+        expression.type === "LogicalExpression"
+    )
+        // TODO: Unsure why these two are separated like this, could be because of allowed types
         return addNode(
             {
                 type: "BinaryOperation",
                 operator: expression.operator,
                 leftSide: compileExpression(expression.left, stasisModule),
                 rightSide: compileExpression(expression.right, stasisModule),
+            },
+            stasisModule,
+            expression
+        );
+    if (expression.type === "UnaryExpression")
+        // TODO: Cannot deal with prefix / postfix or if it even matters lol
+        return addNode(
+            {
+                type: "UnaryOperation",
+                operator: expression.operator,
+                argument: compileExpression(expression.argument, stasisModule),
             },
             stasisModule,
             expression
@@ -157,7 +172,7 @@ const compileExpression = (expression, stasisModule) => {
             {
                 type: "MemberAccess",
                 owner: compileExpression(expression.object, stasisModule),
-                key: expression.computed // Might cause problems - Inconsistent with object templates
+                key: expression.computed // TODO: Might cause problems - Inconsistent with object templates
                     ? compileExpression(expression.property, stasisModule)
                     : compileExpression(
                           // Compile it so it gets a stasis value
@@ -173,6 +188,7 @@ const compileExpression = (expression, stasisModule) => {
             stasisModule,
             expression
         );
+    console.log(expression);
     throw new Error(`Unknown expression type: ${expression.type}`);
 };
 
@@ -206,8 +222,19 @@ const compileStatementBlockBody = (statements, stasisModule) => {
             continue;
         }
         if (statement.type === "IfStatement") {
-            console.log(statement);
-            throw new Error("NOT WORKING YET");
+            const test = compileExpression(statement.test, stasisModule);
+            const consequent = compileStatementBlockBody(
+                [statement.consequent],
+                stasisModule
+            ); // TODO: Do this properly (Need to tell if a block is an block or a single statement)
+            const alternate = compileStatementBlockBody([], stasisModule);
+            // stasisModule.statements.push(test);
+            // stasisModule.statements.push(consequent);
+            // console.log(statement);
+            // throw new Error("NOT WORKING YET");
+            console.log(
+                "WARNING: IF STATEMENTS (AND STATEMENTS IN GENERAL) NOT WORKING YET"
+            );
             continue;
         }
         throw new Error(`Unknown statement type: ${statement.type}`);
@@ -220,6 +247,8 @@ const compileProgram = (moduleNode) => {
         identifiers: {
             console: { type: "BuiltInObject", name: "console" },
             undefined: { type: "UndefinedValue" },
+            isNaN: { type: "BuiltInObject", name: "isNaN" },
+            parseFloat: { type: "BuiltInObject", name: "parseFloat" },
         },
     };
     if (moduleNode.type !== "Program")

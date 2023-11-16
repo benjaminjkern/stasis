@@ -32,6 +32,7 @@ module.exports = {
     makeStasisValue: (value) => {
         if (typeof value === "number") return { type: "NumberValue", value };
         if (typeof value === "string") return { type: "StringValue", value };
+        if (typeof value === "boolean") return { type: "BooleanValue", value };
         // These two shouldnt ever be called in compilation
         if (typeof value === "function")
             return { type: "BuiltInFunctionValue", value };
