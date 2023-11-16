@@ -20,14 +20,16 @@ const addNode = (node, stasisModule, acornNode) => {
 const compileDeclaration = (declaration, stasisModule) => {
     if (declaration.type === "VariableDeclarator") {
         if (declaration.id.type !== "Identifier")
-            throw "Cannot yet deal with VariableDeclarators with non-identifier ids!";
+            throw new Error(
+                "Cannot yet deal with VariableDeclarators with non-identifier ids!"
+            );
         stasisModule.identifiers[declaration.id.name] = compileExpression(
             declaration.init,
             stasisModule
         );
         return;
     }
-    throw `Unknown declaration type: ${declaration.type}`;
+    throw new Error(`Unknown declaration type: ${declaration.type}`);
 };
 
 const compileFunction = (functionDeclaration, stasisModule) => {
@@ -45,12 +47,16 @@ const compileFunction = (functionDeclaration, stasisModule) => {
 
     if (functionDeclaration.id) {
         if (functionDeclaration.id.type !== "Identifier")
-            throw "Cannot yet deal with FunctionDeclarations with non-identifier ids!";
+            throw new Error(
+                "Cannot yet deal with FunctionDeclarations with non-identifier ids!"
+            );
         stasisModule.identifiers[functionDeclaration.id.name] = functionNode;
     }
     for (const param of functionDeclaration.params) {
         if (param.type !== "Identifier")
-            throw "Cannot yet deal with FunctionDeclarations with non-identifier params!";
+            throw new Error(
+                "Cannot yet deal with FunctionDeclarations with non-identifier params!"
+            );
         const paramNode = addNode(
             { type: "FunctionArgumentValue" },
             stasisModule,
@@ -83,10 +89,15 @@ const compileExpression = (expression, stasisModule) => {
         const objectValue = { type: "ObjectTemplate", values: [] };
         for (const prop of expression.properties) {
             if (prop.type !== "Property")
-                throw `Cannot deal with object property type: ${prop.type}`;
-            if (prop.method) throw `Cannot deal with object property methods!`;
+                throw new Error(
+                    `Cannot deal with object property type: ${prop.type}`
+                );
+            if (prop.method)
+                throw new Error(`Cannot deal with object property methods!`);
             if (prop.kind !== "init")
-                throw `Cannot deal with object property kind other than init! (IDK what this is at the moment)`;
+                throw new Error(
+                    `Cannot deal with object property kind other than init! (IDK what this is at the moment)`
+                );
             objectValue.values.push({
                 key:
                     prop.computed || prop.key.type === "Literal"
@@ -107,13 +118,14 @@ const compileExpression = (expression, stasisModule) => {
     }
     if (expression.type === "ArrowFunctionExpression") {
         // Unsure what id & expression are
-        if (expression.async) throw "No async functions (yet)";
-        if (expression.generator) throw "No generator functions (yet)";
+        if (expression.async) throw new Error("No async functions (yet)");
+        if (expression.generator)
+            throw new Error("No generator functions (yet)");
         return compileFunction(expression, stasisModule);
     }
     if (expression.type === "Identifier") {
         if (!stasisModule.identifiers[expression.name])
-            throw `Undefined identifier: ${expression.name}`;
+            throw new Error(`Undefined identifier: ${expression.name}`);
 
         return stasisModule.identifiers[expression.name];
     }
@@ -161,7 +173,7 @@ const compileExpression = (expression, stasisModule) => {
             stasisModule,
             expression
         );
-    throw `Unknown expression type: ${expression.type}`;
+    throw new Error(`Unknown expression type: ${expression.type}`);
 };
 
 const compileStatementBlockBody = (statements, stasisModule) => {
@@ -184,7 +196,9 @@ const compileStatementBlockBody = (statements, stasisModule) => {
         }
         if (statement.type === "ReturnStatement") {
             if (!stasisModule.currentFunction)
-                throw "Return statement not inside of a function (Acorn should have caught this)";
+                throw new Error(
+                    "Return statement not inside of a function (Acorn should have caught this)"
+                );
             getStasisNode(
                 stasisModule.currentFunction,
                 stasisModule
@@ -193,10 +207,10 @@ const compileStatementBlockBody = (statements, stasisModule) => {
         }
         if (statement.type === "IfStatement") {
             console.log(statement);
-            throw "NOT WORKING YET";
+            throw new Error("NOT WORKING YET");
             continue;
         }
-        throw `Unknown statement type: ${statement.type}`;
+        throw new Error(`Unknown statement type: ${statement.type}`);
     }
 };
 const compileProgram = (moduleNode) => {
@@ -208,7 +222,8 @@ const compileProgram = (moduleNode) => {
             undefined: { type: "UndefinedValue" },
         },
     };
-    if (moduleNode.type !== "Program") throw "Tried to compile a non-program!";
+    if (moduleNode.type !== "Program")
+        throw new Error("Tried to compile a non-program!");
     compileStatementBlockBody(moduleNode.body, stasisModule);
     return stasisModule;
 };

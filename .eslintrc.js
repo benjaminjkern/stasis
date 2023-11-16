@@ -20,6 +20,7 @@ module.exports = {
         "require-await": "warn",
         "spaced-comment": "warn",
         "no-unreachable": "warn",
+        "no-throw-literal": "warn",
 
         // Completely disagree
         "quote-props": "off",
@@ -55,7 +56,6 @@ module.exports = {
         "line-comment-position": "off",
         "no-nested-ternary": "off",
         "max-statements": "off",
-        "no-throw-literal": "off",
         // Honestly dont entirely know what this is for but I dont care about it that much
         "default-param-last": "off",
         "init-declarations": "off",

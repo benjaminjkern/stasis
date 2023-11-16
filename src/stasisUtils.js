@@ -13,10 +13,12 @@ module.exports = {
         const path = fullPath.slice(0, -1).join("/");
         const [fileStart, fileEnding, ...rest] = file.split(".");
         if (rest.length || (fileEnding && fileEnding !== "js"))
-            throw "Stasis only works with .js files. If you want, you can also specify the name of the file before the '.js'.";
+            throw new Error(
+                "Stasis only works with .js files. If you want, you can also specify the name of the file before the '.js'."
+            );
         const fullFileName = `${path}/${fileStart}.js`;
         if (!fs.existsSync(fullFileName))
-            throw `File does not exist: ${fullFileName}`;
+            throw new Error(`File does not exist: ${fullFileName}`);
         const stasisFileName = `${path}/${fileStart}.stasis.json`;
         return {
             fullFileName,
@@ -34,7 +36,9 @@ module.exports = {
         if (typeof value === "function")
             return { type: "BuiltInFunctionValue", value };
         if (typeof value === "undefined") return { type: "UndefinedValue" };
-        throw `Unknown raw value type: ${typeof value}`;
+
+        console.error(value);
+        throw new Error(`Unknown raw value type: ${typeof value}`);
     },
     stasisError: (string, stasisNode, stasisModule) => {
         const fullFile = fs.readFileSync(stasisModule.fileName, "utf8");
@@ -101,6 +105,8 @@ module.exports = {
                     .join("\n")
             );
         }
-        return `${stasisModule.fileName} (${rowNum}, ${colNum}): ${string}`;
+        return new Error(
+            `${stasisModule.fileName} (${rowNum}, ${colNum}): ${string}`
+        ); // Do not need to throw this
     },
 };
