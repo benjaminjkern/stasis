@@ -54,8 +54,8 @@ module.exports = {
         const beforeSplitByLines = before.split("\n");
         const duringSplitByLines = during.split("\n");
         const afterSplitByLines = after.split("\n");
-        afterSplitByLines.push("(End of file)".blue);
 
+        const totalLines = fullFile.split("\n").length;
         const rowNum = beforeSplitByLines.length;
         const colNum = beforeSplitByLines[beforeSplitByLines.length - 1].length;
         if (PRINT_ERRORS) {
@@ -65,45 +65,99 @@ module.exports = {
                 LINE_CONTEXT -
                 1
             ).toString().length;
+            const hyphenString = Array(MAX_LINE_NUMBER_LENGTH + 1)
+                .fill("-")
+                .join("");
             const niceLineNum = (lineNum) =>
                 lineNum.toString().padStart(MAX_LINE_NUMBER_LENGTH);
 
             console.log(string.yellow);
-            console.log(
-                beforeSplitByLines
-                    .slice(-1 - LINE_CONTEXT, -1)
-                    .map(
-                        (line, i) =>
-                            `${niceLineNum(
-                                rowNum - LINE_CONTEXT + i
-                            )} | ${line}`
-                    )
-                    .join("\n")
-            );
-            console.log(
-                `${niceLineNum(rowNum)} ${">".yellow} ${
-                    beforeSplitByLines.slice(-1)[0]
-                }${duringSplitByLines
-                    .map((line, i) =>
-                        i === 0
-                            ? line.red
-                            : `${niceLineNum(rowNum + 1 + i)} ${">".yellow} ${
-                                  line.red
-                              }`
-                    )
-                    .join("\n")}${afterSplitByLines[0]}`
-            );
-            console.log(
-                afterSplitByLines
-                    .slice(1, 1 + LINE_CONTEXT)
-                    .map(
-                        (line, i) =>
-                            `${niceLineNum(
-                                rowNum + duringSplitByLines.length + i
-                            )} | ${line}`
-                    )
-                    .join("\n")
-            );
+            for (
+                let r = rowNum - LINE_CONTEXT;
+                r <= rowNum + LINE_CONTEXT + duringSplitByLines.length - 1;
+                r++
+            ) {
+                if (r < 0 || r > totalLines + 1) continue;
+
+                if (r === 0)
+                    console.log(`${hyphenString}| (Start of file)`.blue);
+                else if (r === totalLines + 1)
+                    console.log(`${hyphenString}| (End of file)`.blue);
+                // duringSplitByLines
+                else if (r < rowNum)
+                    console.log(
+                        `${niceLineNum(r)} | ${
+                            beforeSplitByLines[
+                                r - beforeSplitByLines.length - 1 + rowNum
+                            ]
+                        }`
+                    );
+                else if (r === rowNum)
+                    console.log(
+                        `${niceLineNum(r)} ${">".yellow} ${
+                            beforeSplitByLines[beforeSplitByLines.length - 1]
+                        }${duringSplitByLines[0].red}${
+                            duringSplitByLines.length === 1
+                                ? afterSplitByLines[0]
+                                : ""
+                        }`
+                    );
+                else if (r <= rowNum + duringSplitByLines.length - 1)
+                    console.log(
+                        `${niceLineNum(r)} ${">".yellow} ${
+                            duringSplitByLines[r - rowNum].red
+                        }${
+                            r === rowNum + duringSplitByLines.length - 1
+                                ? afterSplitByLines[0]
+                                : ""
+                        }`
+                    );
+                else if (r > rowNum)
+                    console.log(
+                        `${niceLineNum(r)} | ${
+                            afterSplitByLines[
+                                r - rowNum - duringSplitByLines.length + 1
+                            ]
+                        }`
+                    );
+            }
+
+            // console.log(
+            //     beforeSplitByLines
+            //         .slice(-1 - LINE_CONTEXT, -1)
+            //         .map(
+            //             (line, i) =>
+            //                 `${niceLineNum(
+            //                     rowNum - LINE_CONTEXT + i
+            //                 )} | ${line}`
+            //         )
+            //         .join("\n")
+            // );
+            // console.log(
+            //     `${niceLineNum(rowNum)} ${">".yellow} ${
+            //         beforeSplitByLines.slice(-1)[0]
+            //     }${duringSplitByLines
+            //         .map((line, i) =>
+            //             i === 0
+            //                 ? line.red
+            //                 : `${niceLineNum(rowNum + 1 + i)} ${">".yellow} ${
+            //                       line.red
+            //                   }`
+            //         )
+            //         .join("\n")}${afterSplitByLines[0]}`
+            // );
+            // if (rowNum < totalLines)
+            //     console.log(
+            //         afterSplitByLines
+            //             .slice(1, 1 + LINE_CONTEXT)
+            //             .map(
+            //                 (line, i) =>
+            //                     `${niceLineNum(
+            //                         rowNum + duringSplitByLines.length + i
+            //                     )} | ${line}`
+            //             )
+            //             .join("\n")
+            //     );
         }
         return new Error(
             `${stasisModule.fileName} (${rowNum}, ${colNum}): ${string}`
