@@ -173,14 +173,23 @@ const evaluate = debugCalls(
         // }
 
         if (stasisNode.type === "StatementBlock") {
-            for (const statement of stasisNode.statements)
-                evaluate(statement, stasisModule);
+            // TODO: Having all statement blocks return feels weird but I feel like its good
+            for (const statement of stasisNode.statements) {
+                const result = evaluate(statement, stasisModule);
+                if (result.type === "ReturnedValue") return result.value;
+                // TODO: continue & break & yield
+            }
 
             return {
-                // TODO: Unsure if it should return anything at all here
                 type: "UndefinedType",
             };
         }
+
+        if (stasisNode.type === "ReturnStatement")
+            return {
+                type: "ReturnedValue",
+                value: evaluate(stasisNode.value, stasisModule),
+            };
 
         if (stasisNode.type === "ObjectTemplate")
             return {
@@ -209,42 +218,39 @@ const evaluate = debugCalls(
             const evaluatedArguments = stasisNode.arguments.map((arg) =>
                 evaluate(arg, stasisModule)
             );
-            if (callee.type === "FunctionValue") {
-                // Need to account for spread parameters & default parameters
-                // Need to do mutations
-                // Need to account for multiple types and input-dependent types
-                if (callee.returns.length === 0)
-                    return { type: "UndefinedValue" };
-                if (callee.returns.length === 1)
-                    try {
-                        return evaluate(
-                            callee.returns[0],
-                            createCallContext(
-                                callee.parameters,
-                                evaluatedArguments,
-                                stasisModule
-                            )
-                        );
-                    } catch (err) {
-                        // TODO: Should have it check a hard-coded type instead of by a string inside of the error message
-                        if (!err.message.includes("(Stasis")) {
-                            console.error(err.stack);
-                            throw err;
-                        }
+            if (callee.type === "FunctionValue")
+                // TODO: Need to account for spread parameters & default parameters
+                // TODO: Need to do mutations
+                // TODO: Need to account for multiple types and input-dependent types
 
-                        throw stasisValidationError(
-                            `Calling will result in an error: ${err}`,
-                            stasisNode,
+                // TODO: Need to fill returns out
+                // if (callee.returns.length === 0)
+                //     return { type: "UndefinedValue" };
+
+                // TODO: Return possible return types to see if it causes issues then dive deeper
+                try {
+                    return evaluate(
+                        callee.runs[0], // TODO: HACKY
+                        createCallContext(
+                            callee.parameters,
+                            evaluatedArguments,
                             stasisModule
-                        );
+                        )
+                    );
+                } catch (err) {
+                    // TODO: Should have it check a hard-coded type instead of by a string inside of the error message
+                    if (!err.message.includes("(Stasis")) {
+                        console.error(err.stack);
+                        throw err;
                     }
 
-                throw stasisIncompleteError(
-                    "Multiple returns RAHH",
-                    stasisNode,
-                    stasisModule
-                );
-            }
+                    throw stasisValidationError(
+                        `Calling will result in an error: ${err}`,
+                        stasisNode,
+                        stasisModule
+                    );
+                }
+
             if (callee.type === "BuiltInFunctionValue") {
                 const value = callee.value(
                     ...evaluatedArguments.map((arg) => arg.value)
@@ -295,7 +301,12 @@ const evaluate = debugCalls(
                 stasisModule
             );
         }
-        // throw new Error(`Unsupported type: ${stasisNode.type}`);
+        if (stasisNode.type !== undefined)
+            throw stasisIncompleteError(
+                `Unsupported type: ${stasisNode.type}`,
+                stasisNode,
+                stasisModule
+            );
         // TODO: Unsure if defaulting to raw types is the way to go
         return makeStasisValue(stasisNode);
     },

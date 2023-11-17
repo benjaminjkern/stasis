@@ -5,6 +5,8 @@ const {
     getStasisFiles,
     makeStasisValue,
     stasisCompilationError,
+    stasisIncompleteError,
+    getCodePositions,
 } = require("./stasisUtils");
 const { hash } = require("./utils");
 
@@ -13,7 +15,7 @@ const addNode = (node, stasisModule, acornNode) => {
     stasisModule.nodes.push({
         resolvedStasisIndex: stasisIndex,
         ...node,
-        codePosition: [acornNode.start, acornNode.end],
+        ...getCodePositions(acornNode),
     });
     return { stasisIndex };
 };
@@ -21,8 +23,10 @@ const addNode = (node, stasisModule, acornNode) => {
 const compileDeclaration = (declaration, stasisModule) => {
     if (declaration.type === "VariableDeclarator") {
         if (declaration.id.type !== "Identifier")
-            throw new Error(
-                "Cannot yet deal with VariableDeclarators with non-identifier ids!"
+            throw stasisIncompleteError(
+                "Cannot yet deal with VariableDeclarators with non-identifier ids!",
+                getCodePositions(declaration),
+                stasisModule
             );
         stasisModule.identifiers[declaration.id.name] = compileExpression(
             declaration.init,
@@ -30,14 +34,18 @@ const compileDeclaration = (declaration, stasisModule) => {
         );
         return;
     }
-    throw new Error(`Unknown declaration type: ${declaration.type}`);
+    throw stasisIncompleteError(
+        `Unknown declaration type: ${declaration.type}`,
+        getCodePositions(declaration),
+        stasisModule
+    );
 };
 
 const compileFunction = (functionDeclaration, stasisModule) => {
     const functionValue = {
         type: "FunctionValue",
         parameters: [],
-        returns: [],
+        runs: [],
         mutations: [], // unused
     };
     const functionNode = addNode(
@@ -48,15 +56,19 @@ const compileFunction = (functionDeclaration, stasisModule) => {
 
     if (functionDeclaration.id) {
         if (functionDeclaration.id.type !== "Identifier")
-            throw new Error(
-                "Cannot yet deal with FunctionDeclarations with non-identifier ids!"
+            throw stasisIncompleteError(
+                "Cannot yet deal with FunctionDeclarations with non-identifier ids!",
+                getCodePositions(functionDeclaration),
+                stasisModule
             );
         stasisModule.identifiers[functionDeclaration.id.name] = functionNode;
     }
     for (const param of functionDeclaration.params) {
         if (param.type !== "Identifier")
-            throw new Error(
-                "Cannot yet deal with FunctionDeclarations with non-identifier params!"
+            throw stasisIncompleteError(
+                "Cannot yet deal with FunctionDeclarations with non-identifier params!",
+                getCodePositions(param),
+                stasisModule
             );
         const paramNode = addNode(
             { type: "FunctionArgumentValue" },
@@ -66,16 +78,15 @@ const compileFunction = (functionDeclaration, stasisModule) => {
         stasisModule.identifiers[param.name] = paramNode;
         functionValue.parameters.push(paramNode);
     }
-    stasisModule.currentFunction = functionNode;
-    if (functionDeclaration.body.type === "BlockStatement")
-        functionValue.runs = compileStatement(
-            functionDeclaration.body,
-            stasisModule
-        );
-    else
-        functionValue.returns.push(
-            compileExpression(functionDeclaration.body, stasisModule)
-        );
+    stasisModule.currentFunction = functionNode; // TODO: Subject to change when I figure out how return stuff will work
+
+    // TODO: Unsure I am hitting all possibilties here
+    // TODO: Right now runs is an array so that it can be copied by addNode without breaking anything. NEED TO FIX THIS THIS IS HACKY
+    functionValue.runs.push(
+        (functionDeclaration.body.type === "BlockStatement"
+            ? compileStatement
+            : compileExpression)(functionDeclaration.body, stasisModule)
+    );
 
     // TODO: Do something to reset identifiers to how they were before sending them into the block
     stasisModule.currentFunction = undefined;
@@ -93,14 +104,22 @@ const compileExpression = (expression, stasisModule) => {
         const objectValue = { type: "ObjectTemplate", values: [] };
         for (const prop of expression.properties) {
             if (prop.type !== "Property")
-                throw new Error(
-                    `Cannot deal with object property type: ${prop.type}`
+                throw stasisIncompleteError(
+                    `Cannot deal with object property type: ${prop.type}`,
+                    getCodePositions(prop),
+                    stasisModule
                 );
             if (prop.method)
-                throw new Error(`Cannot deal with object property methods!`);
+                throw stasisIncompleteError(
+                    `Cannot deal with object property methods!`,
+                    getCodePositions(prop),
+                    stasisModule
+                );
             if (prop.kind !== "init")
-                throw new Error(
-                    `Cannot deal with object property kind other than init! (IDK what this is at the moment)`
+                throw stasisIncompleteError(
+                    `Cannot deal with object property kind other than init! (IDK what this is at the moment)`,
+                    getCodePositions(prop),
+                    stasisModule
                 );
             objectValue.values.push({
                 key:
@@ -122,14 +141,27 @@ const compileExpression = (expression, stasisModule) => {
     }
     if (expression.type === "ArrowFunctionExpression") {
         // TODO: Unsure what id & expression are
-        if (expression.async) throw new Error("No async functions (yet)");
+        if (expression.async)
+            throw stasisIncompleteError(
+                "No async functions (yet)",
+                getCodePositions(expression),
+                stasisModule
+            );
         if (expression.generator)
-            throw new Error("No generator functions (yet)");
+            throw stasisIncompleteError(
+                "No generator functions (yet)",
+                getCodePositions(expression),
+                stasisModule
+            );
         return compileFunction(expression, stasisModule);
     }
     if (expression.type === "Identifier") {
         if (!stasisModule.identifiers[expression.name])
-            throw new Error(`Undefined identifier: ${expression.name}`);
+            throw stasisIncompleteError(
+                `Undefined identifier: ${expression.name}`,
+                getCodePositions(expression),
+                stasisModule
+            );
 
         return stasisModule.identifiers[expression.name];
     }
@@ -192,7 +224,11 @@ const compileExpression = (expression, stasisModule) => {
             stasisModule,
             expression
         );
-    throw new Error(`Unknown expression type: ${expression.type}`);
+    throw stasisIncompleteError(
+        `Unknown expression type: ${expression.type}`,
+        getCodePositions(expression),
+        stasisModule
+    );
 };
 
 const compileStatement = (statement, stasisModule) => {
@@ -235,14 +271,22 @@ const compileStatement = (statement, stasisModule) => {
     if (statement.type === "ReturnStatement") {
         if (!stasisModule.currentFunction)
             throw stasisCompilationError(
-                "Return statement not inside of a function (Acorn should have caught this)"
+                "Return statement not inside of a function (Acorn should have caught this)",
+                getCodePositions(statement),
+                stasisModule
             );
-        getStasisNode(stasisModule.currentFunction, stasisModule).returns.push(
-            compileExpression(statement.argument, stasisModule)
+        // TODO: Decide how to do return statements
+        // getStasisNode(stasisModule.currentFunction, stasisModule).returns.push(
+        //     compileExpression(statement.argument, stasisModule)
+        // );
+        return addNode(
+            {
+                type: "ReturnStatement",
+                value: compileExpression(statement.argument, stasisModule),
+            },
+            stasisModule,
+            statement
         );
-
-        console.log("RETURN STATEMENTS NOT WORKING CORRECTLY YET");
-        return;
     }
     if (statement.type === "IfStatement") {
         const test = compileExpression(statement.test, stasisModule);
@@ -256,10 +300,15 @@ const compileStatement = (statement, stasisModule) => {
             statement
         );
     }
-    throw new Error(`Unknown statement type: ${statement.type}`);
+
+    throw stasisIncompleteError(
+        `Unknown statement type: ${statement.type}`,
+        getCodePositions(statement),
+        stasisModule
+    );
 };
 
-const compileProgram = (moduleNode) => {
+const compileProgram = (moduleNode, checksum, fileName) => {
     const stasisModule = {
         nodes: [],
         identifiers: {
@@ -268,9 +317,16 @@ const compileProgram = (moduleNode) => {
             isNaN: { type: "BuiltInObject", name: "isNaN" },
             parseFloat: { type: "BuiltInObject", name: "parseFloat" },
         },
+        checksum,
+        fileName,
     };
+
     if (moduleNode.type !== "Program")
-        throw new Error("Tried to compile a non-program!");
+        throw stasisCompilationError(
+            "Tried to compile a non-program!",
+            getCodePositions(moduleNode),
+            stasisModule
+        );
     compileStatement(moduleNode, stasisModule);
     return stasisModule;
 };
@@ -293,10 +349,10 @@ module.exports = (
     const compiledProgram = compileProgram(
         acorn.parse(fullFile, {
             ecmaVersion: 2020,
-        })
+        }),
+        checksum,
+        fullFileName
     );
-    compiledProgram.checksum = checksum;
-    compiledProgram.fileName = fullFileName;
     if (writeFile)
         fs.writeFileSync(
             stasisFileName,
