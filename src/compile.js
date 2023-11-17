@@ -4,6 +4,7 @@ const {
     getStasisNode,
     getStasisFiles,
     makeStasisValue,
+    stasisCompilationError,
 } = require("./stasisUtils");
 const { hash } = require("./utils");
 
@@ -67,7 +68,10 @@ const compileFunction = (functionDeclaration, stasisModule) => {
     }
     stasisModule.currentFunction = functionNode;
     if (functionDeclaration.body.type === "BlockStatement")
-        compileStatementBlockBody(functionDeclaration.body.body, stasisModule);
+        functionValue.runs = compileStatement(
+            functionDeclaration.body,
+            stasisModule
+        );
     else
         functionValue.returns.push(
             compileExpression(functionDeclaration.body, stasisModule)
@@ -188,62 +192,76 @@ const compileExpression = (expression, stasisModule) => {
             stasisModule,
             expression
         );
-    console.log(expression);
     throw new Error(`Unknown expression type: ${expression.type}`);
 };
 
-const compileStatementBlockBody = (statements, stasisModule) => {
-    for (const statement of statements) {
-        if (statement.type === "VariableDeclaration") {
-            for (const declaration of statement.declarations)
-                compileDeclaration(declaration, stasisModule);
-
-            continue;
-        }
-        if (statement.type === "FunctionDeclaration") {
-            compileFunction(statement, stasisModule);
-            continue;
-        }
-        if (statement.type === "ExpressionStatement") {
-            stasisModule.statements.push(
-                compileExpression(statement.expression, stasisModule)
-            );
-            continue;
-        }
-        if (statement.type === "ReturnStatement") {
-            if (!stasisModule.currentFunction)
-                throw new Error(
-                    "Return statement not inside of a function (Acorn should have caught this)"
-                );
-            getStasisNode(
-                stasisModule.currentFunction,
+const compileStatement = (statement, stasisModule) => {
+    if (statement.type === "Program" || statement.type === "BlockStatement") {
+        const statementBlock = {
+            type: "StatementBlock",
+            statements: [],
+        };
+        const statementBlockNode = addNode(
+            statementBlock,
+            stasisModule,
+            statement
+        ); // Do it before compiling anything else so that the program is at the top of the list
+        statement.body.forEach((bodyStatement) => {
+            const compiledStatement = compileStatement(
+                bodyStatement,
                 stasisModule
-            ).returns.push(compileExpression(statement.argument, stasisModule));
-            continue;
-        }
-        if (statement.type === "IfStatement") {
-            const test = compileExpression(statement.test, stasisModule);
-            const consequent = compileStatementBlockBody(
-                [statement.consequent],
-                stasisModule
-            ); // TODO: Do this properly (Need to tell if a block is an block or a single statement)
-            const alternate = compileStatementBlockBody([], stasisModule);
-            // stasisModule.statements.push(test);
-            // stasisModule.statements.push(consequent);
-            // console.log(statement);
-            // throw new Error("NOT WORKING YET");
-            console.log(
-                "WARNING: IF STATEMENTS (AND STATEMENTS IN GENERAL) NOT WORKING YET"
             );
-            continue;
-        }
-        throw new Error(`Unknown statement type: ${statement.type}`);
+            if (!compiledStatement) return; // TODO: returning and/or skipping over null here might not be great
+            statementBlock.statements.push(compiledStatement);
+        });
+        return statementBlockNode;
     }
+    if (statement.type === "VariableDeclaration") {
+        for (const declaration of statement.declarations)
+            compileDeclaration(declaration, stasisModule);
+
+        console.log("DECLARATION STATEMENTS NOT SET YET");
+        return;
+    }
+    if (statement.type === "FunctionDeclaration") {
+        compileFunction(statement, stasisModule);
+
+        console.log("DECLARATION STATEMENTS NOT SET YET");
+        return;
+    }
+    if (statement.type === "ExpressionStatement")
+        return compileExpression(statement.expression, stasisModule);
+
+    if (statement.type === "ReturnStatement") {
+        if (!stasisModule.currentFunction)
+            throw stasisCompilationError(
+                "Return statement not inside of a function (Acorn should have caught this)"
+            );
+        getStasisNode(stasisModule.currentFunction, stasisModule).returns.push(
+            compileExpression(statement.argument, stasisModule)
+        );
+
+        console.log("RETURN STATEMENTS NOT WORKING CORRECTLY YET");
+        return;
+    }
+    if (statement.type === "IfStatement") {
+        const test = compileExpression(statement.test, stasisModule);
+        const consequent = compileStatement(statement.consequent, stasisModule);
+        const alternate = statement.consequent
+            ? compileStatement(statement.consequent, stasisModule)
+            : null;
+        return addNode(
+            { type: "Conditional", test, consequent, alternate },
+            stasisModule,
+            statement
+        );
+    }
+    throw new Error(`Unknown statement type: ${statement.type}`);
 };
+
 const compileProgram = (moduleNode) => {
     const stasisModule = {
         nodes: [],
-        statements: [],
         identifiers: {
             console: { type: "BuiltInObject", name: "console" },
             undefined: { type: "UndefinedValue" },
@@ -253,7 +271,7 @@ const compileProgram = (moduleNode) => {
     };
     if (moduleNode.type !== "Program")
         throw new Error("Tried to compile a non-program!");
-    compileStatementBlockBody(moduleNode.body, stasisModule);
+    compileStatement(moduleNode, stasisModule);
     return stasisModule;
 };
 

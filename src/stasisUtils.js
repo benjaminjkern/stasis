@@ -2,6 +2,89 @@ const fs = require("fs");
 const PRINT_ERRORS = true;
 const LINE_CONTEXT = 2;
 
+const stasisError = (string, stasisNode, stasisModule) => {
+    const fullFile = fs.readFileSync(stasisModule.fileName, "utf8");
+
+    const [before, during, after] = [
+        fullFile.slice(0, stasisNode.codePosition[0]),
+        fullFile.slice(stasisNode.codePosition[0], stasisNode.codePosition[1]),
+        fullFile.slice(stasisNode.codePosition[1]),
+    ];
+    const beforeSplitByLines = before.split("\n");
+    const duringSplitByLines = during.split("\n");
+    const afterSplitByLines = after.split("\n");
+
+    const totalLines = fullFile.split("\n").length;
+    const rowNum = beforeSplitByLines.length;
+    const colNum = beforeSplitByLines[beforeSplitByLines.length - 1].length;
+    if (PRINT_ERRORS) {
+        const MAX_LINE_NUMBER_LENGTH = (
+            rowNum +
+            duringSplitByLines.length +
+            LINE_CONTEXT -
+            1
+        ).toString().length;
+        const hyphenString = Array(MAX_LINE_NUMBER_LENGTH + 1)
+            .fill("-")
+            .join("");
+        const niceLineNum = (lineNum) =>
+            lineNum.toString().padStart(MAX_LINE_NUMBER_LENGTH);
+
+        console.log(string.yellow);
+        for (
+            let r = rowNum - LINE_CONTEXT;
+            r <= rowNum + LINE_CONTEXT + duringSplitByLines.length - 1;
+            r++
+        ) {
+            if (r < 0 || r > totalLines + 1) continue;
+
+            if (r === 0) console.log(`${hyphenString}| (Start of file)`.blue);
+            else if (r === totalLines + 1)
+                console.log(`${hyphenString}| (End of file)`.blue);
+            // duringSplitByLines
+            else if (r < rowNum)
+                console.log(
+                    `${niceLineNum(r)} | ${
+                        beforeSplitByLines[
+                            r - beforeSplitByLines.length - 1 + rowNum
+                        ]
+                    }`
+                );
+            else if (r === rowNum)
+                console.log(
+                    `${niceLineNum(r)} ${">".yellow} ${
+                        beforeSplitByLines[beforeSplitByLines.length - 1]
+                    }${duringSplitByLines[0].red}${
+                        duringSplitByLines.length === 1
+                            ? afterSplitByLines[0]
+                            : ""
+                    }`
+                );
+            else if (r <= rowNum + duringSplitByLines.length - 1)
+                console.log(
+                    `${niceLineNum(r)} ${">".yellow} ${
+                        duringSplitByLines[r - rowNum].red
+                    }${
+                        r === rowNum + duringSplitByLines.length - 1
+                            ? afterSplitByLines[0]
+                            : ""
+                    }`
+                );
+            else if (r > rowNum)
+                console.log(
+                    `${niceLineNum(r)} | ${
+                        afterSplitByLines[
+                            r - rowNum - duringSplitByLines.length + 1
+                        ]
+                    }`
+                );
+        }
+    }
+    return new Error(
+        `${stasisModule.fileName} (${rowNum}, ${colNum}): ${string}`
+    ); // Do not need to throw this
+};
+
 module.exports = {
     getStasisNode: (stasisNode, stasisModule) => {
         if (stasisNode.stasisIndex === undefined) return stasisNode;
@@ -41,127 +124,14 @@ module.exports = {
         console.error(value);
         throw new Error(`Unknown raw value type: ${typeof value}`);
     },
-    stasisError: (string, stasisNode, stasisModule) => {
-        const fullFile = fs.readFileSync(stasisModule.fileName, "utf8");
 
-        const [before, during, after] = [
-            fullFile.slice(0, stasisNode.codePosition[0]),
-            fullFile.slice(
-                stasisNode.codePosition[0],
-                stasisNode.codePosition[1]
-            ),
-            fullFile.slice(stasisNode.codePosition[1]),
-        ];
-        const beforeSplitByLines = before.split("\n");
-        const duringSplitByLines = during.split("\n");
-        const afterSplitByLines = after.split("\n");
-
-        const totalLines = fullFile.split("\n").length;
-        const rowNum = beforeSplitByLines.length;
-        const colNum = beforeSplitByLines[beforeSplitByLines.length - 1].length;
-        if (PRINT_ERRORS) {
-            const MAX_LINE_NUMBER_LENGTH = (
-                rowNum +
-                duringSplitByLines.length +
-                LINE_CONTEXT -
-                1
-            ).toString().length;
-            const hyphenString = Array(MAX_LINE_NUMBER_LENGTH + 1)
-                .fill("-")
-                .join("");
-            const niceLineNum = (lineNum) =>
-                lineNum.toString().padStart(MAX_LINE_NUMBER_LENGTH);
-
-            console.log(string.yellow);
-            for (
-                let r = rowNum - LINE_CONTEXT;
-                r <= rowNum + LINE_CONTEXT + duringSplitByLines.length - 1;
-                r++
-            ) {
-                if (r < 0 || r > totalLines + 1) continue;
-
-                if (r === 0)
-                    console.log(`${hyphenString}| (Start of file)`.blue);
-                else if (r === totalLines + 1)
-                    console.log(`${hyphenString}| (End of file)`.blue);
-                // duringSplitByLines
-                else if (r < rowNum)
-                    console.log(
-                        `${niceLineNum(r)} | ${
-                            beforeSplitByLines[
-                                r - beforeSplitByLines.length - 1 + rowNum
-                            ]
-                        }`
-                    );
-                else if (r === rowNum)
-                    console.log(
-                        `${niceLineNum(r)} ${">".yellow} ${
-                            beforeSplitByLines[beforeSplitByLines.length - 1]
-                        }${duringSplitByLines[0].red}${
-                            duringSplitByLines.length === 1
-                                ? afterSplitByLines[0]
-                                : ""
-                        }`
-                    );
-                else if (r <= rowNum + duringSplitByLines.length - 1)
-                    console.log(
-                        `${niceLineNum(r)} ${">".yellow} ${
-                            duringSplitByLines[r - rowNum].red
-                        }${
-                            r === rowNum + duringSplitByLines.length - 1
-                                ? afterSplitByLines[0]
-                                : ""
-                        }`
-                    );
-                else if (r > rowNum)
-                    console.log(
-                        `${niceLineNum(r)} | ${
-                            afterSplitByLines[
-                                r - rowNum - duringSplitByLines.length + 1
-                            ]
-                        }`
-                    );
-            }
-
-            // console.log(
-            //     beforeSplitByLines
-            //         .slice(-1 - LINE_CONTEXT, -1)
-            //         .map(
-            //             (line, i) =>
-            //                 `${niceLineNum(
-            //                     rowNum - LINE_CONTEXT + i
-            //                 )} | ${line}`
-            //         )
-            //         .join("\n")
-            // );
-            // console.log(
-            //     `${niceLineNum(rowNum)} ${">".yellow} ${
-            //         beforeSplitByLines.slice(-1)[0]
-            //     }${duringSplitByLines
-            //         .map((line, i) =>
-            //             i === 0
-            //                 ? line.red
-            //                 : `${niceLineNum(rowNum + 1 + i)} ${">".yellow} ${
-            //                       line.red
-            //                   }`
-            //         )
-            //         .join("\n")}${afterSplitByLines[0]}`
-            // );
-            // if (rowNum < totalLines)
-            //     console.log(
-            //         afterSplitByLines
-            //             .slice(1, 1 + LINE_CONTEXT)
-            //             .map(
-            //                 (line, i) =>
-            //                     `${niceLineNum(
-            //                         rowNum + duringSplitByLines.length + i
-            //                     )} | ${line}`
-            //             )
-            //             .join("\n")
-            //     );
-        }
-        return new Error(
-            `${stasisModule.fileName} (${rowNum}, ${colNum}): ${string}`
-        ); // Do not need to throw this
+    stasisIncompleteError: (string, ...args) => {
+        return stasisError(`(Stasis isn't complete yet) ${string}`, ...args);
+    },
+    stasisCompilationError: (string, ...args) => {
+        return stasisError(`(Stasis Compilation Error) ${string}`, ...args);
+    },
+    stasisValidationError: (string, ...args) => {
+        return stasisError(`(Stasis Validation Error) ${string}`, ...args);
     },
 };

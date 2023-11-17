@@ -79,6 +79,7 @@ module.exports = {
         "max-len": "off",
         "no-console": "off",
         "no-use-before-define": "off", // Does not account for function hoisting
+        "max-depth": "off",
 
         /*
          * Doesnt exist here but it does exist in eslint-plugin-unicorn

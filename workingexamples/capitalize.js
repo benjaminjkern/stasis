@@ -9,7 +9,7 @@ capitalize({
     }),
     slice: () => 5,
 }); // TECHNICALLY should also be fine
-// capitalize({ a: 5 }); // Should return a stasis error
-// capitalize({ charAt: () => undefined }); // Should return a stasis error
+capitalize({ a: 5 }); // Should return a stasis error
+capitalize({ charAt: () => undefined }); // Should return a stasis error
 
 // shouldnt show

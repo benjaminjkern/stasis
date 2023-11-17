@@ -1,4 +1,8 @@
-const { makeStasisValue, stasisError } = require("./stasisUtils");
+const {
+    makeStasisValue,
+    stasisValidationError,
+    stasisIncompleteError,
+} = require("./stasisUtils");
 const { debugCalls } = require("./utils");
 require("colors");
 
@@ -21,7 +25,7 @@ const createCallContext = (parameters, args, stasisModule) => {
             ? copiedArgs.splice(0)
             : copiedArgs.shift();
     }
-    return { nodes };
+    return { ...stasisModule, nodes };
 };
 
 const evaluateMemberAccess = (stasisNode, stasisModule) => {
@@ -62,14 +66,14 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
     switch (key.type) {
         case "BuiltInFunctionValue":
         case "FunctionValue":
-            stasisError(
+            stasisValidationError(
                 `Warning: This will result in a member access with a function value as a key, which gets turned into a string. This is possible, but probably not what you want!`,
                 stasisNode,
                 stasisModule
             );
             break;
         case "ObjectValue":
-            stasisError(
+            stasisValidationError(
                 `Warning: This will result in a member access with an object value as a key, which gets turned into a string. This is possible, but probably not what you want!`,
                 stasisNode,
                 stasisModule
@@ -79,14 +83,14 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
     }
 
     if (owner.type === "UndefinedValue")
-        throw stasisError(
+        throw stasisValidationError(
             "Cannot perform a member access with the owner set to undefined",
             stasisNode,
             stasisModule
         );
 
     if (owner.type === "NullValue")
-        throw stasisError(
+        throw stasisValidationError(
             "Cannot perform a member access with the owner set to null",
             stasisNode,
             stasisModule
@@ -109,24 +113,36 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
                 value: owner.value.slice,
             };
         // Todo: Iterate through possible keys for strings
-        stasisError(`Warning: key not in object, returning undefined`);
-        return { type: "UndefinedValue" };
-    }
-    if (owner.type === "NumberValue") {
-        // Todo: Iterate through possible keys for number
-        stasisError(`Warning: key not in object, returning undefined`);
-        return { type: "UndefinedValue" };
-    }
-    if (owner.type === "ObjectValue") {
-        if (key.value in owner.value) return evaluate(owner.value[key.value]);
-        stasisError(
+        stasisValidationError(
             `Warning: key not in object, returning undefined`,
             stasisNode,
             stasisModule
         );
         return { type: "UndefinedValue" };
     }
-    throw new Error(`Member Access unsupported owner type: ${owner.type}`);
+    if (owner.type === "NumberValue") {
+        // Todo: Iterate through possible keys for number
+        stasisValidationError(
+            `Warning: key not in object, returning undefined`,
+            stasisNode,
+            stasisModule
+        );
+        return { type: "UndefinedValue" };
+    }
+    if (owner.type === "ObjectValue") {
+        if (key.value in owner.value) return evaluate(owner.value[key.value]);
+        stasisValidationError(
+            `Warning: key not in object, returning undefined`,
+            stasisNode,
+            stasisModule
+        );
+        return { type: "UndefinedValue" };
+    }
+    throw stasisIncompleteError(
+        `Member Access unsupported owner type: ${owner.type}`,
+        stasisNode,
+        stasisModule
+    );
 };
 
 const evaluate = debugCalls(
@@ -156,6 +172,16 @@ const evaluate = debugCalls(
         //     return { type: "MultiplePossibleValues", possibleValues };
         // }
 
+        if (stasisNode.type === "StatementBlock") {
+            for (const statement of stasisNode.statements)
+                evaluate(statement, stasisModule);
+
+            return {
+                // TODO: Unsure if it should return anything at all here
+                type: "UndefinedType",
+            };
+        }
+
         if (stasisNode.type === "ObjectTemplate")
             return {
                 type: "ObjectValue",
@@ -170,8 +196,10 @@ const evaluate = debugCalls(
                             ...p,
                             [evaluatedKey.value]: evaluate(value, stasisModule),
                         };
-                    throw new Error(
-                        `Cannot deal with key type: ${evaluatedKey.type}!`
+                    throw stasisIncompleteError(
+                        `Cannot deal with key type: ${evaluatedKey.type}!`,
+                        stasisNode,
+                        stasisModule
                     );
                 }, {}),
             };
@@ -198,16 +226,24 @@ const evaluate = debugCalls(
                             )
                         );
                     } catch (err) {
-                        // console.warn("Calling will result in an error!");
-                        console.log(err.stack);
-                        throw stasisError(
+                        // TODO: Should have it check a hard-coded type instead of by a string inside of the error message
+                        if (!err.message.includes("(Stasis")) {
+                            console.error(err.stack);
+                            throw err;
+                        }
+
+                        throw stasisValidationError(
                             `Calling will result in an error: ${err}`,
                             stasisNode,
                             stasisModule
                         );
                     }
 
-                throw new Error("Multiple returns RAHH");
+                throw stasisIncompleteError(
+                    "Multiple returns RAHH",
+                    stasisNode,
+                    stasisModule
+                );
             }
             if (callee.type === "BuiltInFunctionValue") {
                 const value = callee.value(
@@ -216,8 +252,8 @@ const evaluate = debugCalls(
                 return makeStasisValue(value);
             }
 
-            throw stasisError(
-                "Callee must be a function value!",
+            throw stasisValidationError(
+                `Callee must be a function value! Received type: ${callee.type}`,
                 stasisNode,
                 stasisModule
             );
@@ -237,36 +273,43 @@ const evaluate = debugCalls(
                         ) ||
                         !["StringValue", "NumberValue"].includes(rightSide.type)
                     )
-                        stasisError(
+                        stasisValidationError(
                             `Warning: + operator is really only designed for numbers and strings`,
                             stasisNode,
                             stasisModule
                         );
                     return leftSide.value + rightSide.value;
             }
-            throw new Error(`Unsupported operator: ${stasisNode.operator}`);
+            throw stasisIncompleteError(
+                `Unsupported operator: ${stasisNode.operator}`,
+                stasisNode,
+                stasisModule
+            );
         }
         if (stasisNode.type === "BuiltInObject") {
             if (stasisNode.name === "console")
                 return { type: "ObjectValue", value: console };
-            throw new Error(`Unknown builtin name: ${stasisNode.name}`);
+            throw stasisIncompleteError(
+                `Unknown builtin name: ${stasisNode.name}`,
+                stasisNode,
+                stasisModule
+            );
         }
         // throw new Error(`Unsupported type: ${stasisNode.type}`);
+        // TODO: Unsure if defaulting to raw types is the way to go
         return makeStasisValue(stasisNode);
     },
     "evaluate",
     [true]
 );
+
 module.exports = (stasisModule) => {
     console.log("Validating module");
-    let errors = false;
-    for (const usage of stasisModule.statements)
-        try {
-            evaluate(usage, stasisModule);
-        } catch (err) {
-            errors = true;
-            console.log(err.message.red);
-        }
-
-    if (!errors) console.log("Module validated");
+    try {
+        evaluate(stasisModule.nodes[0], stasisModule);
+        console.log("Module validated");
+    } catch (err) {
+        // console.log(err.stack);
+        console.log(err.message.red);
+    }
 };

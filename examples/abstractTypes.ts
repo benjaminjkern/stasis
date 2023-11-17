@@ -1,4 +1,22 @@
-abstract class Value {}
+class StasisModule {
+    nodes: [StasisNode];
+    mainStatement: Statement;
+    identifiers: { [key: string]: StasisPointerNode };
+}
+
+abstract class StasisNode {}
+
+class StasisPointerNode<T = typeof StasisNode> {
+    stasisIndex: number; // Integer
+}
+
+abstract class Statement extends StasisNode {}
+
+class StatementBlock extends Statement {
+    statements: [Statement];
+}
+
+abstract class Value extends StasisNode {}
 class StringValue extends Value {
     value: string;
 }
