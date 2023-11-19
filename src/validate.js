@@ -6,20 +6,19 @@ const {
 const { debugCalls } = require("./utils");
 require("colors");
 
-const USAGE_TYPES = ["Call", "MemberAccess", "BinaryOperation"];
 const RAW_VALUE_TYPES = [
     "StringValue",
     "NumberValue",
+    "BooleanValue",
     "ObjectValue",
     "FunctionValue",
 ];
-const ALGEBRAIC_TYPES = [];
 
 const createCallContext = (parameters, args, stasisModule) => {
     const nodes = [...stasisModule.nodes];
     const copiedArgs = [...args];
     for (const parameter of parameters) {
-        // Not accounting for non-spreads after spreads or defaults
+        // TODO: Not accounting for non-spreads after spreads or defaults
         const parameterNode = nodes[parameter.stasisIndex];
         nodes[parameter.stasisIndex] = parameterNode.spread
             ? copiedArgs.splice(0)
@@ -114,7 +113,7 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
             };
         // Todo: Iterate through possible keys for strings
         stasisValidationError(
-            `Warning: key not in object, returning undefined`,
+            `Warning: key not in string protoype, returning undefined`,
             stasisNode,
             stasisModule
         );
@@ -123,7 +122,16 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
     if (owner.type === "NumberValue") {
         // Todo: Iterate through possible keys for number
         stasisValidationError(
-            `Warning: key not in object, returning undefined`,
+            `Warning: key not in number prototype, returning undefined`,
+            stasisNode,
+            stasisModule
+        );
+        return { type: "UndefinedValue" };
+    }
+    if (owner.type === "BooleanValue") {
+        // Todo: Iterate through possible keys for boolean
+        stasisValidationError(
+            `Warning: key not in number prototype, returning undefined`,
             stasisNode,
             stasisModule
         );
@@ -132,7 +140,7 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
     if (owner.type === "ObjectValue") {
         if (key.value in owner.value) return evaluate(owner.value[key.value]);
         stasisValidationError(
-            `Warning: key not in object, returning undefined`,
+            `Warning: key not in object or object prototype, returning undefined`,
             stasisNode,
             stasisModule
         );
@@ -171,6 +179,20 @@ const evaluate = debugCalls(
         //     }
         //     return { type: "MultiplePossibleValues", possibleValues };
         // }
+
+        if (stasisNode.type === "Conditional") {
+            const test = evaluate(stasisNode.test, stasisModule);
+
+            // TODO: Throw a warning ? If not explicitly casted to a boolean
+            if (test) return evaluate(stasisNode.consequent, stasisModule);
+
+            if (stasisNode.alternate)
+                return evaluate(stasisNode.alternate, stasisModule);
+
+            return {
+                type: "UndefinedType",
+            };
+        }
 
         if (stasisNode.type === "StatementBlock") {
             // TODO: Having all statement blocks return feels weird but I feel like its good
@@ -223,10 +245,6 @@ const evaluate = debugCalls(
                 // TODO: Need to do mutations
                 // TODO: Need to account for multiple types and input-dependent types
 
-                // TODO: Need to fill returns out
-                // if (callee.returns.length === 0)
-                //     return { type: "UndefinedValue" };
-
                 // TODO: Return possible return types to see if it causes issues then dive deeper
                 try {
                     return evaluate(
@@ -238,6 +256,10 @@ const evaluate = debugCalls(
                         )
                     );
                 } catch (err) {
+                    if (!err.message) {
+                        console.trace();
+                        throw new Error(err);
+                    }
                     // TODO: Should have it check a hard-coded type instead of by a string inside of the error message
                     if (!err.message.includes("(Stasis")) {
                         console.error(err.stack);
@@ -245,7 +267,7 @@ const evaluate = debugCalls(
                     }
 
                     throw stasisValidationError(
-                        `Calling will result in an error: ${err}`,
+                        `Calling will result in an error:\n${err}`,
                         stasisNode,
                         stasisModule
                     );
@@ -271,6 +293,7 @@ const evaluate = debugCalls(
         if (stasisNode.type === "BinaryOperation") {
             const leftSide = evaluate(stasisNode.leftSide, stasisModule);
             const rightSide = evaluate(stasisNode.rightSide, stasisModule);
+            // Todo: This won't work with non-raw values if this ever happens
             switch (stasisNode.operator) {
                 case "+":
                     if (
@@ -284,7 +307,31 @@ const evaluate = debugCalls(
                             stasisNode,
                             stasisModule
                         );
-                    return leftSide.value + rightSide.value;
+                    return makeStasisValue(leftSide.value + rightSide.value);
+                case "!=":
+                    stasisValidationError(
+                        `Warning: Try to use !== instead of != operator (See more: https://eslint.org/docs/latest/rules/eqeqeq)`,
+                        stasisNode,
+                        stasisModule
+                    );
+                    // eslint-disable-next-line eqeqeq
+                    return makeStasisValue(leftSide.value != rightSide.value);
+            }
+            throw stasisIncompleteError(
+                `Unsupported operator: ${stasisNode.operator}`,
+                stasisNode,
+                stasisModule
+            );
+        }
+        if (stasisNode.type === "UnaryOperation") {
+            const argument = evaluate(stasisNode.argument, stasisModule);
+            // Todo: This won't work with non-raw values if this ever happens
+            switch (stasisNode.operator) {
+                case "typeof":
+                    return {
+                        type: "StringValue",
+                        value: typeof argument.value,
+                    };
             }
             throw stasisIncompleteError(
                 `Unsupported operator: ${stasisNode.operator}`,
@@ -322,5 +369,6 @@ module.exports = (stasisModule) => {
     } catch (err) {
         // console.log(err.stack);
         console.log(err.message.red);
+        console.log("Module failed validation");
     }
 };

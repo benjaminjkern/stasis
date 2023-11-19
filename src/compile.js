@@ -291,8 +291,8 @@ const compileStatement = (statement, stasisModule) => {
     if (statement.type === "IfStatement") {
         const test = compileExpression(statement.test, stasisModule);
         const consequent = compileStatement(statement.consequent, stasisModule);
-        const alternate = statement.consequent
-            ? compileStatement(statement.consequent, stasisModule)
+        const alternate = statement.alternate
+            ? compileStatement(statement.alternate, stasisModule)
             : null;
         return addNode(
             { type: "Conditional", test, consequent, alternate },
@@ -345,18 +345,22 @@ module.exports = (
             return stasisProgram;
         }
     }
-    console.log(`Compiling ${stasisFileName}`);
+    console.log(`Compiling ${fullFileName}`);
     const compiledProgram = compileProgram(
         acorn.parse(fullFile, {
             ecmaVersion: 2020,
+            sourceType: "module",
         }),
         checksum,
         fullFileName
     );
-    if (writeFile)
+    console.log("Finished compiling.");
+    if (writeFile) {
+        console.log(`Writing to Stasis file: ${stasisFileName.green}`);
         fs.writeFileSync(
             stasisFileName,
             JSON.stringify(compiledProgram, undefined, 4)
         );
+    }
     return compiledProgram;
 };

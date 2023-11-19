@@ -5,7 +5,7 @@ function isNumeric(str) {
     return !isNaN(str) && !isNaN(parseFloat(str));
 }
 
-isNumeric("5");
+isNumeric("5").monkey;
 isNumeric(5);
 isNumeric({});
 isNumeric("sup");
