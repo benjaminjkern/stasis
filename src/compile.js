@@ -12,11 +12,9 @@ const { hash } = require("./utils");
 
 const addNode = (node, stasisModule, acornNode) => {
     const stasisIndex = stasisModule.nodes.length;
-    stasisModule.nodes.push({
-        resolvedStasisIndex: stasisIndex,
-        ...node,
-        ...getCodePositions(acornNode),
-    });
+    node.resolvedStasisIndex = stasisIndex;
+    node.codePosition = getCodePositions(acornNode).codePosition;
+    stasisModule.nodes.push(node);
     return { stasisIndex };
 };
 
@@ -45,7 +43,6 @@ const compileFunction = (functionDeclaration, stasisModule) => {
     const functionValue = {
         type: "FunctionValue",
         parameters: [],
-        runs: [],
         mutations: [], // unused
     };
     const functionNode = addNode(
@@ -81,12 +78,11 @@ const compileFunction = (functionDeclaration, stasisModule) => {
     stasisModule.currentFunction = functionNode; // TODO: Subject to change when I figure out how return stuff will work
 
     // TODO: Unsure I am hitting all possibilties here
-    // TODO: Right now runs is an array so that it can be copied by addNode without breaking anything. NEED TO FIX THIS THIS IS HACKY
-    functionValue.runs.push(
-        (functionDeclaration.body.type === "BlockStatement"
+    functionValue.runs = (
+        functionDeclaration.body.type === "BlockStatement"
             ? compileStatement
-            : compileExpression)(functionDeclaration.body, stasisModule)
-    );
+            : compileExpression
+    )(functionDeclaration.body, stasisModule);
 
     // TODO: Do something to reset identifiers to how they were before sending them into the block
     stasisModule.currentFunction = undefined;
@@ -232,6 +228,16 @@ const compileExpression = (expression, stasisModule) => {
 };
 
 const compileStatement = (statement, stasisModule) => {
+    if (statement.type === "EmptyStatement")
+        // TODO: This might be a bad way of doing this but I think it's fine
+        return addNode(
+            {
+                type: "StatementBlock",
+                statements: [],
+            },
+            stasisModule,
+            statement
+        );
     if (statement.type === "Program" || statement.type === "BlockStatement") {
         const statementBlock = {
             type: "StatementBlock",
@@ -300,6 +306,21 @@ const compileStatement = (statement, stasisModule) => {
             statement
         );
     }
+    if (statement.type === "WhileStatement") {
+        const test = compileExpression(statement.test, stasisModule);
+        const body = compileStatement(statement.body, stasisModule);
+        const whileLoop = { type: "Conditional", test, alternate: null };
+        const whileNode = addNode(whileLoop, stasisModule, statement);
+        whileLoop.consequent = addNode(
+            {
+                type: "StatementBlock",
+                statements: [body, whileNode],
+            },
+            stasisModule,
+            statement.body
+        );
+        return whileNode;
+    }
 
     throw stasisIncompleteError(
         `Unknown statement type: ${statement.type}`,
@@ -346,14 +367,29 @@ module.exports = (
         }
     }
     console.log(`Compiling ${fullFileName}`);
-    const compiledProgram = compileProgram(
-        acorn.parse(fullFile, {
-            ecmaVersion: 2020,
-            sourceType: "module",
-        }),
-        checksum,
-        fullFileName
-    );
+    let compiledProgram;
+    try {
+        compiledProgram = compileProgram(
+            acorn.parse(fullFile, {
+                ecmaVersion: 2020,
+                sourceType: "module",
+            }),
+            checksum,
+            fullFileName
+        );
+    } catch (err) {
+        if (!err.message) {
+            console.trace();
+            throw new Error(err);
+        }
+        // TODO: Should have it check a hard-coded type instead of by a string inside of the error message
+        if (!err.message.includes("(Stasis")) {
+            console.error(err.stack);
+            throw err;
+        }
+        console.error(err.message.red);
+        process.exit(1);
+    }
     console.log("Finished compiling.");
     if (writeFile) {
         console.log(`Writing to Stasis file: ${stasisFileName.green}`);

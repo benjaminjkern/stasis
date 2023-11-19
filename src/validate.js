@@ -8,6 +8,8 @@ require("colors");
 
 const RAW_VALUE_TYPES = [
     "StringValue",
+    "UndefinedType",
+    "NullType",
     "NumberValue",
     "BooleanValue",
     "ObjectValue",
@@ -184,7 +186,8 @@ const evaluate = debugCalls(
             const test = evaluate(stasisNode.test, stasisModule);
 
             // TODO: Throw a warning ? If not explicitly casted to a boolean
-            if (test) return evaluate(stasisNode.consequent, stasisModule);
+            if (test.value)
+                return evaluate(stasisNode.consequent, stasisModule);
 
             if (stasisNode.alternate)
                 return evaluate(stasisNode.alternate, stasisModule);
@@ -195,6 +198,7 @@ const evaluate = debugCalls(
         }
 
         if (stasisNode.type === "StatementBlock") {
+            console.log(stasisNode);
             // TODO: Having all statement blocks return feels weird but I feel like its good
             for (const statement of stasisNode.statements) {
                 const result = evaluate(statement, stasisModule);
@@ -248,7 +252,7 @@ const evaluate = debugCalls(
                 // TODO: Return possible return types to see if it causes issues then dive deeper
                 try {
                     return evaluate(
-                        callee.runs[0], // TODO: HACKY
+                        callee.runs,
                         createCallContext(
                             callee.parameters,
                             evaluatedArguments,
@@ -316,6 +320,18 @@ const evaluate = debugCalls(
                     );
                     // eslint-disable-next-line eqeqeq
                     return makeStasisValue(leftSide.value != rightSide.value);
+                case "<":
+                    if (
+                        leftSide.type !== "NumberValue" ||
+                        rightSide.type !== "NumberValue"
+                    )
+                        stasisValidationError(
+                            `Warning: < operator is really only designed for numbers`,
+                            stasisNode,
+                            stasisModule
+                        );
+
+                    return makeStasisValue(leftSide.value < rightSide.value);
             }
             throw stasisIncompleteError(
                 `Unsupported operator: ${stasisNode.operator}`,
@@ -367,8 +383,10 @@ module.exports = (stasisModule) => {
         evaluate(stasisModule.nodes[0], stasisModule);
         console.log("Module validated");
     } catch (err) {
-        // console.log(err.stack);
-        console.log(err.message.red);
+        if (!err.message) console.trace();
+        // TODO: Should have it check a hard-coded type instead of by a string inside of the error message
+        else if (!err.message.includes("(Stasis")) console.error(err.stack);
+        else console.error(err.message.red);
         console.log("Module failed validation");
     }
 };
