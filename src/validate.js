@@ -165,6 +165,14 @@ const evaluate = debugCalls(
 
         if (RAW_VALUE_TYPES.includes(stasisNode.type)) return stasisNode;
 
+        if (stasisNode.seen)
+            throw stasisValidationError(
+                `This will result in an infinite loop!`,
+                stasisNode,
+                stasisModule
+            );
+        stasisNode.seen = true;
+
         // Need to Consolidate multiple possible values into one
         // if (stasisNode.type === "MultiplePossibleValues") {
         //     const possibleValues = [];
@@ -198,7 +206,6 @@ const evaluate = debugCalls(
         }
 
         if (stasisNode.type === "StatementBlock") {
-            console.log(stasisNode);
             // TODO: Having all statement blocks return feels weird but I feel like its good
             for (const statement of stasisNode.statements) {
                 const result = evaluate(statement, stasisModule);
