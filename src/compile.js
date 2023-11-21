@@ -159,7 +159,10 @@ const compileExpression = (expression, stasisModule) => {
                 stasisModule
             );
 
-        return stasisModule.identifiers[expression.name];
+        const knownNode = stasisModule.identifiers[expression.name];
+        if (knownNode.type) return addNode(knownNode, stasisModule, expression);
+
+        return knownNode;
     }
     if (
         expression.type === "BinaryExpression" ||

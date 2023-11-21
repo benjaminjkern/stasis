@@ -355,6 +355,11 @@ const evaluate = debugCalls(
                         type: "StringValue",
                         value: typeof argument.value,
                     };
+                case "!":
+                    return {
+                        type: "BooleanValue",
+                        value: !argument.value,
+                    };
             }
             throw stasisIncompleteError(
                 `Unsupported operator: ${stasisNode.operator}`,
@@ -365,6 +370,9 @@ const evaluate = debugCalls(
         if (stasisNode.type === "BuiltInObject") {
             if (stasisNode.name === "console")
                 return { type: "ObjectValue", value: console };
+
+            if (stasisNode.name === "isNaN")
+                return { type: "BuiltInFunctionValue", value: isNaN };
             throw stasisIncompleteError(
                 `Unknown builtin name: ${stasisNode.name}`,
                 stasisNode,
