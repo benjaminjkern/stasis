@@ -1,5 +1,9 @@
-let a = 0;
+const a = 0;
 
-while (a < 1000);
+a = 50;
+
+while (a < 1000) {
+    a = 1000;
+}
 
 console.log(a);

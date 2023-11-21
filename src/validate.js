@@ -148,7 +148,8 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
         return { type: "UndefinedValue" };
     }
     if (owner.type === "ObjectValue") {
-        if (key.value in owner.value) return evaluate(owner.value[key.value]);
+        if (key.value in owner.value)
+            return evaluate(owner.value[key.value], stasisModule);
         stasisValidationError(
             `Warning: key "${key.value}" not in object or object prototype, returning undefined`,
             stasisNode,
@@ -165,23 +166,50 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
 
 const evaluate = debugCalls(
     (stasisNode, passedInStasisModule) => {
-        if (stasisNode.stasisIndex !== undefined)
+        if (stasisNode.stasisIndex !== undefined) {
+            // Iterate in reverse order through revisions
+            for (
+                let i = passedInStasisModule.revisions.length - 1;
+                i >= 0;
+                i--
+            ) {
+                const { assignee, evaluatedNewValue } =
+                    passedInStasisModule.revisions[i];
+                if (assignee.stasisIndex === stasisNode.stasisIndex)
+                    return evaluatedNewValue;
+            }
+
             return evaluate(
                 passedInStasisModule.nodes[stasisNode.stasisIndex],
                 passedInStasisModule
             );
+        }
 
         if (RAW_VALUE_TYPES.includes(stasisNode.type)) return stasisNode;
 
-        if (stasisNode.seen)
-            throw stasisValidationError(
-                `This will result in an infinite loop!`,
-                stasisNode,
-                passedInStasisModule
+        if (stasisNode.lastSeenRevisions !== undefined) {
+            const revisionsSinceLastSeen = passedInStasisModule.revisions.slice(
+                stasisNode.lastSeenRevisions
             );
+            if (revisionsSinceLastSeen.length === 0)
+                throw stasisValidationError(
+                    `This will result in an infinite loop!`,
+                    stasisNode,
+                    passedInStasisModule
+                );
+        }
 
         const stasisModule = createContext(
-            [[stasisNode.resolvedStasisIndex, { ...stasisNode, seen: true }]],
+            [
+                [
+                    stasisNode.resolvedStasisIndex,
+                    {
+                        ...stasisNode,
+                        lastSeenRevisions:
+                            passedInStasisModule.revisions.length,
+                    },
+                ],
+            ],
             passedInStasisModule
         );
 
@@ -215,6 +243,16 @@ const evaluate = debugCalls(
             return {
                 type: "UndefinedType",
             };
+        }
+
+        if (stasisNode.type === "SetValue") {
+            const newValue = evaluate(stasisNode.newValue, stasisModule);
+            stasisModule.revisions.push({
+                assignee: stasisNode.assignee,
+                newValue: stasisNode.newValue,
+                evaluatedNewValue: newValue,
+            });
+            return newValue;
         }
 
         if (stasisNode.type === "StatementBlock") {
@@ -422,7 +460,7 @@ const evaluate = debugCalls(
 module.exports = (stasisModule) => {
     console.log("Validating module");
     try {
-        evaluate(stasisModule.nodes[0], stasisModule);
+        evaluate(stasisModule.nodes[0], { ...stasisModule, revisions: [] });
         console.log("Module validated");
     } catch (err) {
         if (!err.message) console.trace();

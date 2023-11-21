@@ -1,7 +1,6 @@
 const acorn = require("acorn");
 const fs = require("fs");
 const {
-    getStasisNode,
     getStasisFiles,
     makeStasisValue,
     stasisCompilationError,
@@ -60,6 +59,7 @@ const compileFunction = (functionDeclaration, stasisModule) => {
             );
         stasisModule.identifiers[functionDeclaration.id.name] = functionNode;
     }
+
     for (const param of functionDeclaration.params) {
         if (param.type !== "Identifier")
             throw stasisIncompleteError(
@@ -77,7 +77,6 @@ const compileFunction = (functionDeclaration, stasisModule) => {
     }
     stasisModule.currentFunction = functionNode; // TODO: Subject to change when I figure out how return stuff will work
 
-    // TODO: Unsure I am hitting all possibilties here
     functionValue.runs = (
         functionDeclaration.body.type === "BlockStatement"
             ? compileStatement
@@ -164,6 +163,7 @@ const compileExpression = (expression, stasisModule) => {
 
         return knownNode;
     }
+
     if (
         expression.type === "BinaryExpression" ||
         expression.type === "LogicalExpression"
@@ -223,6 +223,40 @@ const compileExpression = (expression, stasisModule) => {
             stasisModule,
             expression
         );
+
+    // if (expression.type === "UpdateExpression") {
+    //     console.log(expression);
+    //     compileStatement({type: "UpdateStatement"});
+    //     return addNode(
+    //         compileExpression(expression.argument),
+    //         stasisModule,
+    //         expression.argument
+    //     );
+    // }
+    if (expression.type === "AssignmentExpression") {
+        if (expression.operator !== "=")
+            throw stasisIncompleteError(
+                `AssignmentExpressions can only deal with = right now`,
+                expression,
+                stasisModule
+            );
+        if (expression.left.type !== "Identifier")
+            throw stasisIncompleteError(
+                `AssignmentExpressions can only deal with raw assignments right now (direct to variable)`,
+                expression,
+                stasisModule
+            );
+        return addNode(
+            {
+                type: "SetValue",
+                newValue: compileExpression(expression.right, stasisModule),
+                assignee: compileExpression(expression.left, stasisModule),
+            },
+            stasisModule,
+            expression
+        );
+    }
+
     throw stasisIncompleteError(
         `Unknown expression type: ${expression.type}`,
         getCodePositions(expression),
