@@ -29,6 +29,14 @@ const createCallContext = (parameters, args, stasisModule) => {
     return { ...stasisModule, nodes };
 };
 
+const createContext = (replaceWithList, stasisModule) => {
+    const nodes = [...stasisModule.nodes];
+    for (const [stasisIndex, value] of replaceWithList)
+        nodes[stasisIndex] = value;
+
+    return { ...stasisModule, nodes };
+};
+
 const evaluateMemberAccess = (stasisNode, stasisModule) => {
     const owner = evaluate(stasisNode.owner, stasisModule);
 
@@ -115,7 +123,7 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
             };
         // Todo: Iterate through possible keys for strings
         stasisValidationError(
-            `Warning: key not in string protoype, returning undefined`,
+            `Warning: key "${key.value}" not in string protoype, returning undefined`,
             stasisNode,
             stasisModule
         );
@@ -124,7 +132,7 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
     if (owner.type === "NumberValue") {
         // Todo: Iterate through possible keys for number
         stasisValidationError(
-            `Warning: key not in number prototype, returning undefined`,
+            `Warning: key "${key.value}" not in number prototype, returning undefined`,
             stasisNode,
             stasisModule
         );
@@ -133,7 +141,7 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
     if (owner.type === "BooleanValue") {
         // Todo: Iterate through possible keys for boolean
         stasisValidationError(
-            `Warning: key not in number prototype, returning undefined`,
+            `Warning: key "${key.value}" not in boolean prototype, returning undefined`,
             stasisNode,
             stasisModule
         );
@@ -142,7 +150,7 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
     if (owner.type === "ObjectValue") {
         if (key.value in owner.value) return evaluate(owner.value[key.value]);
         stasisValidationError(
-            `Warning: key not in object or object prototype, returning undefined`,
+            `Warning: key "${key.value}" not in object or object prototype, returning undefined`,
             stasisNode,
             stasisModule
         );
@@ -156,11 +164,11 @@ const evaluateMemberAccess = (stasisNode, stasisModule) => {
 };
 
 const evaluate = debugCalls(
-    (stasisNode, stasisModule) => {
+    (stasisNode, passedInStasisModule) => {
         if (stasisNode.stasisIndex !== undefined)
             return evaluate(
-                stasisModule.nodes[stasisNode.stasisIndex],
-                stasisModule
+                passedInStasisModule.nodes[stasisNode.stasisIndex],
+                passedInStasisModule
             );
 
         if (RAW_VALUE_TYPES.includes(stasisNode.type)) return stasisNode;
@@ -169,9 +177,13 @@ const evaluate = debugCalls(
             throw stasisValidationError(
                 `This will result in an infinite loop!`,
                 stasisNode,
-                stasisModule
+                passedInStasisModule
             );
-        stasisNode.seen = true;
+
+        const stasisModule = createContext(
+            [[stasisNode.resolvedStasisIndex, { ...stasisNode, seen: true }]],
+            passedInStasisModule
+        );
 
         // Need to Consolidate multiple possible values into one
         // if (stasisNode.type === "MultiplePossibleValues") {
@@ -339,6 +351,19 @@ const evaluate = debugCalls(
                         );
 
                     return makeStasisValue(leftSide.value < rightSide.value);
+                case "&&":
+                    // TODO: Decide if this should warn the user
+                    // if (
+                    //     leftSide.type !== "BooleanValue" ||
+                    //     rightSide.type !== "BooleanValue"
+                    // )
+                    //     stasisValidationError(
+                    //         `Warning: && operator is really only designed for booleans`,
+                    //         stasisNode,
+                    //         stasisModule
+                    //     );
+
+                    return makeStasisValue(leftSide.value && rightSide.value);
             }
             throw stasisIncompleteError(
                 `Unsupported operator: ${stasisNode.operator}`,
@@ -373,6 +398,8 @@ const evaluate = debugCalls(
 
             if (stasisNode.name === "isNaN")
                 return { type: "BuiltInFunctionValue", value: isNaN };
+            if (stasisNode.name === "parseFloat")
+                return { type: "BuiltInFunctionValue", value: parseFloat };
             throw stasisIncompleteError(
                 `Unknown builtin name: ${stasisNode.name}`,
                 stasisNode,
