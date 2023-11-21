@@ -4,6 +4,7 @@ const {
     stasisIncompleteError,
 } = require("./stasisUtils");
 const { debugCalls } = require("./utils");
+const expressionAffectedByRevision = require("./validate/expressionAffectedByRevision");
 require("colors");
 
 const RAW_VALUE_TYPES = [
@@ -187,16 +188,50 @@ const evaluate = debugCalls(
 
         if (RAW_VALUE_TYPES.includes(stasisNode.type)) return stasisNode;
 
-        if (stasisNode.lastSeenRevisions !== undefined) {
-            const revisionsSinceLastSeen = passedInStasisModule.revisions.slice(
-                stasisNode.lastSeenRevisions
+        // Detect recursion / infinite loops
+        if (stasisNode.lastSeenState !== undefined) {
+            const branchesSinceLastSeen = passedInStasisModule.branches.slice(
+                stasisNode.lastSeenState.branches
             );
-            if (revisionsSinceLastSeen.length === 0)
+            if (branchesSinceLastSeen.length === 0)
                 throw stasisValidationError(
-                    `This will result in an infinite loop!`,
+                    `This will result in an infinite loop (No branches since last call)!`,
                     stasisNode,
                     passedInStasisModule
                 );
+
+            const revisionsSinceLastSeen = passedInStasisModule.revisions.slice(
+                stasisNode.lastSeenState.revisions
+            );
+            if (revisionsSinceLastSeen.length === 0)
+                throw stasisValidationError(
+                    `This will result in an infinite loop (No revisions since last call)!`,
+                    stasisNode,
+                    passedInStasisModule
+                );
+
+            const affectedBranchesSinceLastSeen = branchesSinceLastSeen.filter(
+                ({ test }) =>
+                    revisionsSinceLastSeen.some((revision) =>
+                        expressionAffectedByRevision(
+                            test,
+                            revision,
+                            passedInStasisModule
+                        )
+                    )
+            );
+            if (affectedBranchesSinceLastSeen.length === 0)
+                throw stasisValidationError(
+                    `This will result in an infinite loop (No CHANGED branches since last call)!`,
+                    stasisNode,
+                    passedInStasisModule
+                );
+
+            // stasisValidationError(
+            //     `Warning: Stasis currently has no way of knowing how long this loop will run for! Keep an eye on it!`,
+            //     stasisNode,
+            //     passedInStasisModule
+            // );
         }
 
         const stasisModule = createContext(
@@ -205,8 +240,10 @@ const evaluate = debugCalls(
                     stasisNode.resolvedStasisIndex,
                     {
                         ...stasisNode,
-                        lastSeenRevisions:
-                            passedInStasisModule.revisions.length,
+                        lastSeenState: {
+                            revisions: passedInStasisModule.revisions.length,
+                            branches: passedInStasisModule.branches.length,
+                        },
                     },
                 ],
             ],
@@ -232,6 +269,11 @@ const evaluate = debugCalls(
 
         if (stasisNode.type === "Conditional") {
             const test = evaluate(stasisNode.test, stasisModule);
+
+            stasisModule.branches.push({
+                test: stasisNode.test,
+                result: test.value,
+            });
 
             // TODO: Throw a warning ? If not explicitly casted to a boolean
             if (test.value)
@@ -460,7 +502,11 @@ const evaluate = debugCalls(
 module.exports = (stasisModule) => {
     console.log("Validating module");
     try {
-        evaluate(stasisModule.nodes[0], { ...stasisModule, revisions: [] });
+        evaluate(stasisModule.nodes[0], {
+            ...stasisModule,
+            revisions: [],
+            branches: [],
+        });
         console.log("Module validated");
     } catch (err) {
         if (!err.message) console.trace();
