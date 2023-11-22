@@ -124,9 +124,6 @@ module.exports = {
         console.error(value);
         throw new Error(`Unknown raw value type: ${typeof value}`);
     },
-    getCodePositions: (acornNode) => ({
-        codePosition: [acornNode.start, acornNode.end],
-    }),
 
     stasisIncompleteError: (string, ...args) => {
         return stasisError(`(Stasis isn't complete yet) ${string}`, ...args);

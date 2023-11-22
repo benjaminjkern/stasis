@@ -1,5 +1,6 @@
 const compile = require("./src/compile");
 const validate = require("./src/validate");
+require("colors");
 
 const stasisCli = (...[node, index, inputFile]) => {
     if (!inputFile) {
