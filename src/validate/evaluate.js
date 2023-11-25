@@ -70,10 +70,13 @@ const evaluate = (stasisNode, passedInStasisModule) => {
         );
         if (affectedBranchesSinceLastSeen.length === 0)
             throw stasisValidationError(
-                `This will result in an infinite loop (No CHANGED branches since last call)!`,
+                `This will result in an infinite loop (No AFFECTED branches since last call)!`,
                 stasisNode,
                 passedInStasisModule
             );
+        // TODO: Test for POSSIBLY CHANGED branches since last call
+        console.log(stasisNode);
+        // TODO: Test for branch chains (I think if there is a double-recursive method it wont catch that right now, although that doesnt matter for now with while loops)
 
         // stasisValidationError(
         //     `Warning: Stasis currently has no way of knowing how long this loop will run for! Keep an eye on it!`,
